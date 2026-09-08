@@ -1,0 +1,123 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           String         @id @default(uuid())
+  email        String         @unique
+  passwordHash String         @map("password_hash")
+  name         String
+  role         Role           @default(STUDENT)
+  createdAt    DateTime       @default(now()) @map("created_at")
+  updatedAt    DateTime       @updatedAt @map("updated_at")
+  profile      Profile?
+  examResults  ExamResult[]
+
+  @@map("users")
+}
+
+model Profile {
+  id        String  @id @default(uuid())
+  userId    String  @unique @map("user_id")
+  avatar    String?
+  school    String?
+  level     String?
+  bio       String?
+  user      User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("profiles")
+}
+
+model Subject {
+  id          String     @id @default(uuid())
+  name        String     @unique
+  description String?
+  createdAt   DateTime   @default(now()) @map("created_at")
+  questions   Question[]
+  exams       Exam[]
+
+  @@map("subjects")
+}
+
+model Question {
+  id            String         @id @default(uuid())
+  subjectId     String         @map("subject_id")
+  text          String
+  options       Json
+  correctAnswer String         @map("correct_answer")
+  explanation   String?
+  difficulty    Difficulty     @default(MEDIUM)
+  createdAt     DateTime       @default(now()) @map("created_at")
+  updatedAt     DateTime       @updatedAt @map("updated_at")
+  subject       Subject        @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+  examQuestions ExamQuestion[]
+
+  @@index([subjectId])
+  @@map("questions")
+}
+
+model Exam {
+  id             String         @id @default(uuid())
+  title          String
+  subjectId      String         @map("subject_id")
+  durationMins   Int            @default(60) @map("duration_mins")
+  totalQuestions Int            @map("total_questions")
+  isActive       Boolean        @default(true) @map("is_active")
+  createdAt      DateTime       @default(now()) @map("created_at")
+  updatedAt      DateTime       @updatedAt @map("updated_at")
+  subject        Subject        @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+  questions      ExamQuestion[]
+  results        ExamResult[]
+
+  @@index([subjectId])
+  @@index([isActive])
+  @@map("exams")
+}
+
+model ExamQuestion {
+  id         String   @id @default(uuid())
+  examId     String   @map("exam_id")
+  questionId String   @map("question_id")
+  order      Int
+  exam       Exam     @relation(fields: [examId], references: [id], onDelete: Cascade)
+  question   Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+
+  @@unique([examId, questionId])
+  @@index([examId])
+  @@map("exam_questions")
+}
+
+model ExamResult {
+  id             String   @id @default(uuid())
+  userId         String   @map("user_id")
+  examId         String   @map("exam_id")
+  score          Int
+  totalQuestions Int      @map("total_questions")
+  percentage     Float
+  timeTakenMins  Int?     @map("time_taken_mins")
+  answers        Json
+  completedAt    DateTime @default(now()) @map("completed_at")
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  exam           Exam     @relation(fields: [examId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([examId])
+  @@index([userId, examId])
+  @@map("exam_results")
+}
+
+enum Role {
+  STUDENT
+  ADMIN
+}
+
+enum Difficulty {
+  EASY
+  MEDIUM
+  HARD
+}

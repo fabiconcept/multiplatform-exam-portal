@@ -1,0 +1,41 @@
+{
+  "name": "@exam-portal/utils",
+  "version": "0.1.0",
+  "private": true,
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "import": "./src/index.ts",
+      "require": "./src/index.ts"
+    },
+    "./security": {
+      "types": "./src/security/index.ts",
+      "import": "./src/security/index.ts",
+      "require": "./src/security/index.ts"
+    },
+    "./scoring": {
+      "types": "./src/scoring.ts",
+      "import": "./src/scoring.ts",
+      "require": "./src/scoring.ts"
+    }
+  },
+  "scripts": {
+    "build": "tsc",
+    "typecheck": "tsc --noEmit",
+    "clean": "rm -rf dist"
+  },
+  "dependencies": {
+    "zod": "^3.23.0",
+    "jsonwebtoken": "^9.0.2",
+    "bcryptjs": "^2.4.3",
+    "crypto-js": "^4.2.0"
+  },
+  "devDependencies": {
+    "@types/jsonwebtoken": "^9.0.6",
+    "@types/bcryptjs": "^2.4.6",
+    "@types/crypto-js": "^4.2.2",
+    "typescript": "^5.5.0"
+  }
+}
