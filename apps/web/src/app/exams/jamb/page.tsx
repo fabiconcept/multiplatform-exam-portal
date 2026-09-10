@@ -2,19 +2,37 @@ import Link from 'next/link';
 import Navbar from '@/components/landing/Navbar';
 import Footer from '@/components/landing/Footer';
 
+const SubjectIcon = ({ name, className = 'w-5 h-5' }: { name: string; className?: string }) => {
+  const iconMap: Record<string, JSX.Element> = {
+    Mathematics: <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z" /></svg>,
+    'English Language': <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" /></svg>,
+    Physics: <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>,
+    Chemistry: <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" /></svg>,
+    Biology: <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" /></svg>,
+    Economics: <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" /></svg>,
+    Government: <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" /></svg>,
+    Literature: <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" /></svg>,
+    History: <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>,
+    Geography: <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>,
+    'Computer Studies': <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg>,
+    'Agricultural Science': <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" /></svg>,
+  };
+  return iconMap[name] || iconMap.Mathematics;
+};
+
 const subjects = [
-  { name: 'Mathematics', questions: 350, icon: '📐' },
-  { name: 'English Language', questions: 280, icon: '📖' },
-  { name: 'Physics', questions: 220, icon: '⚡' },
-  { name: 'Chemistry', questions: 200, icon: '🧪' },
-  { name: 'Biology', questions: 180, icon: '🧬' },
-  { name: 'Economics', questions: 160, icon: '📊' },
-  { name: 'Government', questions: 140, icon: '🏛️' },
-  { name: 'Literature', questions: 120, icon: '📚' },
-  { name: 'History', questions: 110, icon: '📜' },
-  { name: 'Geography', questions: 100, icon: '🌍' },
-  { name: 'Computer Studies', questions: 90, icon: '💻' },
-  { name: 'Agricultural Science', questions: 80, icon: '🌾' },
+  { name: 'Mathematics', questions: 350 },
+  { name: 'English Language', questions: 280 },
+  { name: 'Physics', questions: 220 },
+  { name: 'Chemistry', questions: 200 },
+  { name: 'Biology', questions: 180 },
+  { name: 'Economics', questions: 160 },
+  { name: 'Government', questions: 140 },
+  { name: 'Literature', questions: 120 },
+  { name: 'History', questions: 110 },
+  { name: 'Geography', questions: 100 },
+  { name: 'Computer Studies', questions: 90 },
+  { name: 'Agricultural Science', questions: 80 },
 ];
 
 const features = [
@@ -72,9 +90,14 @@ export default function JAMBPage() {
                   </svg>
                   All Exams
                 </Link>
-                <h1 className="text-4xl md:text-5xl lg:text-6xl font-display font-bold text-neutral-900 mb-6">
-                  JAMB / UTME
-                </h1>
+                <div className="flex items-center gap-4 mb-6">
+                  <div className="w-16 h-16 rounded-2xl flex items-center justify-center overflow-hidden">
+                    <img src="/images/jamb.webp" alt="JAMB Logo" className="w-14 h-14 object-contain" />
+                  </div>
+                  <h1 className="text-4xl md:text-5xl lg:text-6xl font-display font-bold text-neutral-900">
+                    JAMB / UTME
+                  </h1>
+                </div>
                 <p className="text-lg md:text-xl text-neutral-700 mb-8">
                   Joint Admissions and Matriculation Board - Unified Tertiary Matriculation Examination. 
                   Prepare with thousands of past questions and realistic CBT simulation.
@@ -97,22 +120,27 @@ export default function JAMBPage() {
                   </Link>
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="bg-white rounded-3xl p-6 text-center shadow-xl">
-                  <p className="text-4xl font-bold text-primary-500">2,000+</p>
-                  <p className="text-neutral-600 mt-1">Past Questions</p>
-                </div>
-                <div className="bg-white rounded-3xl p-6 text-center shadow-xl">
-                  <p className="text-4xl font-bold text-accent-500">12+</p>
-                  <p className="text-neutral-600 mt-1">Subjects</p>
-                </div>
-                <div className="bg-white rounded-3xl p-6 text-center shadow-xl">
-                  <p className="text-4xl font-bold text-success-500">300K+</p>
-                  <p className="text-neutral-600 mt-1">Students</p>
-                </div>
-                <div className="bg-white rounded-3xl p-6 text-center shadow-xl">
-                  <p className="text-4xl font-bold text-warning-500">100%</p>
-                  <p className="text-neutral-600 mt-1">Offline</p>
+              <div className="relative">
+                <div className="absolute -top-8 -right-8 w-48 h-48 bg-white/10 rounded-full blur-3xl" />
+                <div className="absolute -bottom-12 -left-12 w-64 h-64 bg-white/5 rounded-full blur-3xl" />
+                <div className="relative grid grid-cols-2 gap-4">
+                  <div className="bg-white rounded-3xl p-6 text-center shadow-xl">
+                    <p className="text-4xl font-bold text-primary-500">2,000+</p>
+                    <p className="text-neutral-600 mt-1">Past Questions</p>
+                  </div>
+                  <div className="bg-white rounded-3xl p-6 text-center shadow-xl">
+                    <p className="text-4xl font-bold text-accent-500">12+</p>
+                    <p className="text-neutral-600 mt-1">Subjects</p>
+                  </div>
+                  <div className="bg-white rounded-3xl p-6 text-center shadow-xl">
+                    <p className="text-4xl font-bold text-success-500">300K+</p>
+                    <p className="text-neutral-600 mt-1">Students</p>
+                  </div>
+                  <div className="bg-white rounded-3xl p-6 text-center shadow-xl relative overflow-hidden">
+                    <img src="/images/jamb.webp" alt="" className="absolute -bottom-4 -right-4 w-24 h-24 object-contain opacity-10" />
+                    <p className="text-4xl font-bold text-warning-500">100%</p>
+                    <p className="text-neutral-600 mt-1">Offline</p>
+                  </div>
                 </div>
               </div>
             </div>
@@ -145,7 +173,9 @@ export default function JAMBPage() {
                 className="bg-white rounded-2xl p-5 border-2 border-neutral-100 hover:border-primary-300 hover:shadow-lg transition-all cursor-pointer"
               >
                 <div className="flex items-center gap-4">
-                  <span className="text-3xl">{subject.icon}</span>
+                  <div className="w-10 h-10 bg-primary-100 rounded-xl flex items-center justify-center">
+                    <SubjectIcon name={subject.name} className="w-5 h-5 text-primary-600" />
+                  </div>
                   <div>
                     <h3 className="font-semibold text-neutral-900">{subject.name}</h3>
                     <p className="text-sm text-neutral-500">{subject.questions} questions</p>

@@ -11,6 +11,7 @@ const exams = [
     features: ['15+ subjects', '2000+ questions', 'Real CBT interface', 'Detailed explanations'],
     color: 'primary',
     href: '/exams/jamb',
+    image: '/images/jamb.webp',
   },
   {
     id: 'waec',
@@ -20,6 +21,7 @@ const exams = [
     features: ['All subjects', '1500+ questions', 'Exam mode', 'Performance analytics'],
     color: 'accent',
     href: '/exams/waec',
+    image: '/images/waec.png',
   },
   {
     id: 'postutme',
@@ -29,6 +31,7 @@ const exams = [
     features: ['University-specific', 'Timed tests', 'Score prediction', 'Study materials'],
     color: 'success',
     href: '/exams/postutme',
+    image: '/images/post utme.webp',
   },
   {
     id: 'bece',
@@ -38,6 +41,7 @@ const exams = [
     features: ['Core subjects', '800+ questions', 'Study mode', 'Progress tracking'],
     color: 'warning',
     href: '/exams/bece',
+    image: '/images/neco.webp',
   },
   {
     id: 'ncee',
@@ -47,6 +51,7 @@ const exams = [
     features: ['Primary school level', '600+ questions', 'Simple interface', 'Parent tracking'],
     color: 'background',
     href: '/exams/ncee',
+    image: '/images/ncee.webp',
   },
 ];
 
@@ -88,10 +93,8 @@ export default function ExamsPage() {
                   href={exam.href}
                   className={`group bg-white rounded-3xl p-8 border-2 ${colors.border} ${colors.hover} hover:shadow-xl transition-all duration-300`}
                 >
-                  <div className={`w-16 h-16 ${colors.bg} rounded-2xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform`}>
-                    <svg className={`w-8 h-8 ${colors.text}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
-                    </svg>
+                  <div className="w-16 h-16 rounded-2xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform overflow-hidden">
+                    <img src={exam.image} alt={exam.name} className="w-14 h-14 object-contain" />
                   </div>
                   <h2 className="text-2xl font-bold text-neutral-900 mb-2">{exam.name}</h2>
                   <p className="text-sm text-neutral-500 mb-4">{exam.fullName}</p>
