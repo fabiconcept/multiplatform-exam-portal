@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 
-export function middleware(request: NextRequest) {
+export function middleware(_request: NextRequest) {
   const response = NextResponse.next();
 
   response.headers.set('X-DNS-Prefetch-Control', 'on');
@@ -24,18 +24,21 @@ export function middleware(request: NextRequest) {
   ].join('; ');
   response.headers.set('Content-Security-Policy', csp);
 
-  const pathname = request.nextUrl.pathname;
+  // TODO: Enable auth protection below
+  // const pathname = request.nextUrl.pathname;
+  // const publicPaths = ['/login', '/register'];
+  // const isPublic = publicPaths.some((p) => pathname === p) || 
+  //   pathname.startsWith('/_next') || 
+  //   pathname.startsWith('/api/auth');
 
-  const isPublic = ['/', '/login', '/register', '/sitemap.xml', '/robots.txt', '/manifest.json'].some(
-    (p) => pathname === p || pathname.startsWith('/_next') || pathname.startsWith('/api/auth')
-  );
-
-  if (!isPublic && !pathname.startsWith('/admin')) {
-    const token = request.cookies.get('access_token')?.value;
-    if (!token) {
-      return NextResponse.redirect(new URL('/login', request.url));
-    }
-  }
+  // if (!isPublic) {
+  //   const token = request.cookies.get('access_token')?.value;
+  //   if (!token) {
+  //     const loginUrl = new URL('/login', request.url);
+  //     loginUrl.searchParams.set('redirect', pathname);
+  //     return NextResponse.redirect(loginUrl);
+  //   }
+  // }
 
   return response;
 }

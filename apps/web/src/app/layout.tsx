@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import { inter, poppins } from '../styles/fonts';
 import '../styles/globals.css';
 
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'https://fabicbt.com';
@@ -59,7 +60,7 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en">
+    <html lang="en" className={`${inter.variable} ${poppins.variable}`}>
       <body>{children}</body>
     </html>
   );

@@ -1,27 +1,184 @@
-import type { Metadata } from 'next';
+'use client';
 
-export const metadata: Metadata = {
-  title: 'Sign In',
-  description: 'Sign in to your Fabi CBT account',
-};
+import { useState } from 'react';
+import Link from 'next/link';
 
 export default function LoginPage() {
+  const [formData, setFormData] = useState({
+    email: '',
+    password: '',
+  });
+  const [showPassword, setShowPassword] = useState(false);
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    console.log('Login:', formData);
+  };
+
   return (
-    <div className="bg-white p-8 rounded-lg shadow-md">
-      <h1 className="text-2xl font-bold mb-6">Sign In</h1>
-      <form className="space-y-4">
-        <div>
-          <label htmlFor="email" className="block text-sm font-medium mb-1">Email</label>
-          <input type="email" id="email" className="w-full border rounded-lg px-4 py-2" />
+    <div className="w-full max-w-5xl mx-auto">
+      <div className="grid lg:grid-cols-2 gap-8 items-center">
+        {/* Left - Branding */}
+        <div className="hidden lg:block">
+          <Link href="/" className="inline-flex items-center gap-3 mb-8">
+            <div className="w-14 h-14 bg-primary-500 rounded-2xl flex items-center justify-center">
+              <span className="text-3xl font-bold text-neutral-900">E</span>
+            </div>
+            <span className="text-3xl font-bold text-neutral-900 font-display">ExamScholars</span>
+          </Link>
+          
+          <h1 className="text-4xl font-display font-bold text-neutral-900 mb-4 leading-tight">
+            Prepare smarter.{' '}
+            <span className="text-accent-500">Practise confidently.</span>
+          </h1>
+          <p className="text-lg text-neutral-600 mb-8">
+            Sign in to access thousands of past questions, track your progress, and excel in your exams.
+          </p>
+
+          <div className="grid grid-cols-3 gap-4">
+            <div className="bg-white rounded-2xl p-4 text-center shadow-sm">
+              <p className="text-2xl font-bold text-primary-500">300K+</p>
+              <p className="text-xs text-neutral-500">Students</p>
+            </div>
+            <div className="bg-white rounded-2xl p-4 text-center shadow-sm">
+              <p className="text-2xl font-bold text-accent-500">10K+</p>
+              <p className="text-xs text-neutral-500">Questions</p>
+            </div>
+            <div className="bg-white rounded-2xl p-4 text-center shadow-sm">
+              <p className="text-2xl font-bold text-success-500">5+</p>
+              <p className="text-xs text-neutral-500">Exams</p>
+            </div>
+          </div>
         </div>
+
+        {/* Right - Login Form */}
         <div>
-          <label htmlFor="password" className="block text-sm font-medium mb-1">Password</label>
-          <input type="password" id="password" className="w-full border rounded-lg px-4 py-2" />
+          {/* Mobile Logo */}
+          <div className="text-center mb-8 lg:hidden">
+            <Link href="/" className="inline-flex items-center gap-3">
+              <div className="w-12 h-12 bg-primary-500 rounded-2xl flex items-center justify-center">
+                <span className="text-2xl font-bold text-neutral-900">E</span>
+              </div>
+              <span className="text-2xl font-bold text-neutral-900 font-display">ExamScholars</span>
+            </Link>
+          </div>
+
+          <div className="bg-white rounded-3xl p-8 shadow-lg">
+            <h2 className="text-2xl font-bold mb-1">Welcome back</h2>
+            <p className="text-neutral-500 mb-8">Sign in to continue your exam preparation</p>
+
+            <form onSubmit={handleSubmit} className="space-y-5">
+              <div>
+                <label htmlFor="email" className="block text-sm font-medium text-neutral-700 mb-2">
+                  Email address
+                </label>
+                <input
+                  type="email"
+                  id="email"
+                  value={formData.email}
+                  onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                  className="input"
+                  placeholder="you@example.com"
+                  required
+                />
+              </div>
+
+              <div>
+                <label htmlFor="password" className="block text-sm font-medium text-neutral-700 mb-2">
+                  Password
+                </label>
+                <div className="relative">
+                  <input
+                    type={showPassword ? 'text' : 'password'}
+                    id="password"
+                    value={formData.password}
+                    onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                    className="input pr-12"
+                    placeholder="Enter your password"
+                    required
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-neutral-400 hover:text-neutral-600"
+                  >
+                    {showPassword ? (
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" />
+                      </svg>
+                    ) : (
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                      </svg>
+                    )}
+                  </button>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between">
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    className="w-4 h-4 rounded border-neutral-300 text-primary-500 focus:ring-primary-500"
+                  />
+                  <span className="text-sm text-neutral-600">Remember me</span>
+                </label>
+                <Link href="/forgot-password" className="text-sm text-primary-600 hover:text-primary-700 font-medium">
+                  Forgot password?
+                </Link>
+              </div>
+
+              <button
+                type="submit"
+                className="w-full py-4 bg-neutral-900 text-white font-semibold rounded-full hover:bg-neutral-800 hover:shadow-lg hover:shadow-neutral-900/20 active:scale-[0.98] transition-all duration-200"
+              >
+                Sign in
+              </button>
+            </form>
+
+            <div className="mt-6 relative">
+              <div className="absolute inset-0 flex items-center">
+                <div className="w-full border-t border-neutral-100" />
+              </div>
+              <div className="relative flex justify-center text-sm">
+                <span className="px-4 bg-white text-neutral-400">or continue with</span>
+              </div>
+            </div>
+
+            <div className="mt-6 grid grid-cols-2 gap-3">
+              <button
+                type="button"
+                className="py-3 px-4 border-2 border-neutral-100 rounded-full font-medium text-neutral-700 hover:bg-neutral-50 hover:border-neutral-200 transition-all flex items-center justify-center gap-2"
+              >
+                <svg className="w-5 h-5" viewBox="0 0 24 24">
+                  <path fill="#4285F4" d="M23.745 12.27c0-.79-.07-1.54-.19-2.27h-11.3v4.51h6.47c-.29 1.48-1.14 2.73-2.4 3.58v3h3.86c2.26-2.09 3.56-5.17 3.56-8.82z" />
+                  <path fill="#34A853" d="M12.255 24c3.24 0 5.95-1.08 7.93-2.91l-3.86-3c-1.08.72-2.45 1.16-4.07 1.16-3.13 0-5.78-2.11-6.73-4.96h-3.98v3.09C3.515 21.3 7.565 24 12.255 24z" />
+                  <path fill="#FBBC05" d="M5.525 14.29c-.25-.72-.38-1.49-.38-2.29s.14-1.57.38-2.29V6.62h-3.98a11.86 11.86 0 000 10.76l3.98-3.09z" />
+                  <path fill="#EA4335" d="M12.255 4.75c1.77 0 3.35.61 4.6 1.8l3.42-3.42C18.205 1.19 15.495 0 12.255 0c-4.69 0-8.74 2.7-10.71 6.62l3.98 3.09c.95-2.85 3.6-4.96 6.73-4.96z" />
+                </svg>
+                Google
+              </button>
+              <button
+                type="button"
+                className="py-3 px-4 border-2 border-neutral-100 rounded-full font-medium text-neutral-700 hover:bg-neutral-50 hover:border-neutral-200 transition-all flex items-center justify-center gap-2"
+              >
+                <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+                  <path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.8-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M13 3.5c.73-.83 1.94-1.46 2.94-1.5.13 1.17-.34 2.35-1.04 3.19-.69.85-1.83 1.51-2.95 1.42-.15-1.15.41-2.35 1.05-3.11z" />
+                </svg>
+                Apple
+              </button>
+            </div>
+          </div>
+
+          <p className="text-center mt-6 text-neutral-600">
+            Don&apos;t have an account?{' '}
+            <Link href="/register" className="text-primary-600 hover:text-primary-700 font-semibold">
+              Sign up for free
+            </Link>
+          </p>
         </div>
-        <button type="submit" className="w-full bg-blue-600 text-white py-2 rounded-lg font-semibold hover:bg-blue-700">
-          Sign In
-        </button>
-      </form>
+      </div>
     </div>
   );
 }
