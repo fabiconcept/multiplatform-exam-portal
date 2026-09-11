@@ -1,0 +1,35 @@
+CREATE TABLE IF NOT EXISTS exams (
+    id TEXT PRIMARY KEY NOT NULL,
+    name TEXT NOT NULL,
+    slug TEXT NOT NULL UNIQUE,
+    description TEXT,
+    total_questions INTEGER NOT NULL DEFAULT 0,
+    time_limit_minutes INTEGER NOT NULL DEFAULT 120,
+    is_active INTEGER NOT NULL DEFAULT 1,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS subjects (
+    id TEXT PRIMARY KEY NOT NULL,
+    exam_id TEXT NOT NULL,
+    name TEXT NOT NULL,
+    slug TEXT NOT NULL,
+    description TEXT,
+    is_active INTEGER NOT NULL DEFAULT 1,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (exam_id) REFERENCES exams(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS topics (
+    id TEXT PRIMARY KEY NOT NULL,
+    subject_id TEXT NOT NULL,
+    name TEXT NOT NULL,
+    slug TEXT NOT NULL,
+    is_active INTEGER NOT NULL DEFAULT 1,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (subject_id) REFERENCES subjects(id) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS idx_subjects_exam_id ON subjects(exam_id);
+CREATE INDEX IF NOT EXISTS idx_topics_subject_id ON topics(subject_id);
