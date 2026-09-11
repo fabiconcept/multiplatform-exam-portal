@@ -36,9 +36,9 @@ export default function RegisterPage() {
 
       if (success) {
         toast.success('Account created!', {
-          description: 'Welcome to ExamScholars. Redirecting to dashboard...',
+          description: 'Please check your email to verify your account.',
         });
-        setTimeout(() => router.push('/dashboard'), 1000);
+        setTimeout(() => router.push(`/check-email?email=${encodeURIComponent(data.email)}`), 1000);
       } else {
         toast.error('Registration failed', {
           description: 'This email may already be in use. Please try again.',

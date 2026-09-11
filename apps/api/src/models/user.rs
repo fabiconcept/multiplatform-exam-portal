@@ -94,3 +94,24 @@ pub struct PasswordReset {
     pub used: bool,
     pub created_at: NaiveDateTime,
 }
+
+#[derive(Debug, Serialize, Deserialize, FromRow)]
+pub struct EmailVerification {
+    pub id: String,
+    pub user_id: String,
+    pub email: String,
+    pub token: String,
+    pub expires_at: NaiveDateTime,
+    pub verified: bool,
+    pub created_at: NaiveDateTime,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct VerifyEmailRequest {
+    pub token: String,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct SendVerificationRequest {
+    pub email: String,
+}

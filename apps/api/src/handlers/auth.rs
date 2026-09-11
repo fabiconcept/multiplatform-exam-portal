@@ -5,7 +5,7 @@ use uuid::Uuid;
 use chrono::Utc;
 
 use crate::AppState;
-use crate::models::{RegisterRequest, LoginRequest, AuthResponse, UserResponse, User, Claims, ForgotPasswordRequest, ResetPasswordRequest, PasswordReset};
+use crate::models::{RegisterRequest, LoginRequest, AuthResponse, UserResponse, User, Claims, ForgotPasswordRequest, ResetPasswordRequest, PasswordReset, EmailVerification, VerifyEmailRequest, SendVerificationRequest};
 
 pub async fn register(
     data: web::Data<AppState>,
@@ -56,6 +56,26 @@ pub async fn register(
                 .unwrap();
 
             let token = create_token(&id, &data.config.jwt_secret, data.config.jwt_expires_in);
+
+            let verification_token = Uuid::new_v4().to_string();
+            let verification_id = Uuid::new_v4().to_string();
+            let expires_at = Utc::now().naive_utc() + chrono::Duration::hours(24);
+
+            let _ = sqlx::query(
+                "INSERT INTO email_verifications (id, user_id, email, token, expires_at, verified, created_at) VALUES (?, ?, ?, ?, ?, 0, ?)"
+            )
+            .bind(&verification_id)
+            .bind(&id)
+            .bind(&body.email)
+            .bind(&verification_token)
+            .bind(expires_at)
+            .bind(now)
+            .execute(&data.db)
+            .await;
+
+            if let Err(e) = send_verification_email(&data.config, &body.email, &verification_token, &body.name).await {
+                log::error!("Failed to send verification email: {}", e);
+            }
 
             HttpResponse::Created().json(AuthResponse {
                 token,
@@ -250,6 +270,183 @@ pub async fn reset_password(
         })),
         Err(e) => {
             log::error!("Reset password error: {}", e);
+            HttpResponse::InternalServerError().json(serde_json::json!({
+                "error": "Internal server error"
+            }))
+        }
+    }
+}
+
+async fn send_verification_email(
+    config: &crate::config::Config,
+    to_email: &str,
+    token: &str,
+    user_name: &str,
+) -> Result<(), String> {
+    use resend_rs::{Resend, types::CreateEmailBaseOptions};
+
+    let resend = Resend::new(&config.resend_api_key);
+    
+    let verify_url = format!("{}/verify-email?token={}", config.frontend_url, token);
+    
+    let html = format!(
+        r#"<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body style="font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 600px; margin: 0 auto; padding: 40px 20px; background-color: #f8fafc;">
+    <div style="background: white; border-radius: 16px; padding: 40px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);">
+        <div style="text-align: center; margin-bottom: 32px;">
+            <div style="display: inline-block; background: #F5C518; width: 56px; height: 56px; border-radius: 12px; line-height: 56px; font-size: 28px; font-weight: bold; color: #2A241E;">E</div>
+        </div>
+        <h1 style="color: #2A241E; font-size: 24px; font-weight: 700; text-align: center; margin-bottom: 8px;">Verify your email address</h1>
+        <p style="color: #645646; text-align: center; margin-bottom: 32px;">Hi {}, welcome to ExamScholars! Please verify your email address to get started.</p>
+        <div style="text-align: center; margin-bottom: 32px;">
+            <a href="{}" style="display: inline-block; background: #2A241E; color: white; padding: 14px 32px; border-radius: 9999px; text-decoration: none; font-weight: 600;">Verify Email Address</a>
+        </div>
+        <p style="color: #645646; font-size: 14px; text-align: center;">Or copy this link: <a href="{}" style="color: #F5C518;">{}</a></p>
+        <hr style="border: none; border-top: 1px solid #E1D9D0; margin: 32px 0;">
+        <p style="color: #9CA3AF; font-size: 12px; text-align: center;">This link expires in 24 hours. If you didn't create an account, you can ignore this email.</p>
+    </div>
+</body>
+</html>"#,
+        user_name, verify_url, verify_url, verify_url
+    );
+
+    let email = CreateEmailBaseOptions::new(&config.email_from, [to_email], "Verify your ExamScholars email")
+        .with_html(&html);
+
+    match resend.emails.send(email).await {
+        Ok(_) => {
+            log::info!("Verification email sent to {}", to_email);
+            Ok(())
+        }
+        Err(e) => {
+            log::error!("Failed to send verification email: {}", e);
+            Err(e.to_string())
+        }
+    }
+}
+
+pub async fn send_verification(
+    data: web::Data<AppState>,
+    body: web::Json<SendVerificationRequest>,
+) -> HttpResponse {
+    let user = sqlx::query_as::<_, User>("SELECT * FROM users WHERE email = ?")
+        .bind(&body.email)
+        .fetch_optional(&data.db)
+        .await;
+
+    match user {
+        Ok(Some(user)) => {
+            let token = Uuid::new_v4().to_string();
+            let id = Uuid::new_v4().to_string();
+            let now = Utc::now().naive_utc();
+            let expires_at = Utc::now().naive_utc() + chrono::Duration::hours(24);
+
+            let _ = sqlx::query(
+                "INSERT INTO email_verifications (id, user_id, email, token, expires_at, verified, created_at) VALUES (?, ?, ?, ?, ?, 0, ?)"
+            )
+            .bind(&id)
+            .bind(&user.id)
+            .bind(&user.email)
+            .bind(&token)
+            .bind(expires_at)
+            .bind(now)
+            .execute(&data.db)
+            .await;
+
+            if let Err(e) = send_verification_email(&data.config, &user.email, &token, &user.name).await {
+                log::error!("Send verification email error: {}", e);
+            }
+
+            HttpResponse::Ok().json(serde_json::json!({
+                "message": "If an account exists with this email, a verification link has been sent."
+            }))
+        }
+        Ok(None) => HttpResponse::Ok().json(serde_json::json!({
+            "message": "If an account exists with this email, a verification link has been sent."
+        })),
+        Err(e) => {
+            log::error!("Send verification error: {}", e);
+            HttpResponse::InternalServerError().json(serde_json::json!({
+                "error": "Internal server error"
+            }))
+        }
+    }
+}
+
+pub async fn verify_email(
+    data: web::Data<AppState>,
+    body: web::Json<VerifyEmailRequest>,
+) -> HttpResponse {
+    let verification = sqlx::query_as::<_, EmailVerification>(
+        "SELECT * FROM email_verifications WHERE token = ? AND verified = 0 AND expires_at > datetime('now')"
+    )
+    .bind(&body.token)
+    .fetch_optional(&data.db)
+    .await;
+
+    match verification {
+        Ok(Some(verification_record)) => {
+            let now = Utc::now().naive_utc();
+
+            let _ = sqlx::query("UPDATE email_verifications SET verified = 1 WHERE id = ?")
+                .bind(&verification_record.id)
+                .execute(&data.db)
+                .await;
+
+            let _ = sqlx::query("UPDATE users SET is_active = 1, updated_at = ? WHERE id = ?")
+                .bind(now)
+                .bind(&verification_record.user_id)
+                .execute(&data.db)
+                .await;
+
+            HttpResponse::Ok().json(serde_json::json!({
+                "message": "Email verified successfully"
+            }))
+        }
+        Ok(None) => HttpResponse::BadRequest().json(serde_json::json!({
+            "error": "Invalid or expired verification token"
+        })),
+        Err(e) => {
+            log::error!("Verify email error: {}", e);
+            HttpResponse::InternalServerError().json(serde_json::json!({
+                "error": "Internal server error"
+            }))
+        }
+    }
+}
+
+pub async fn check_verification_status(
+    req: HttpRequest,
+    data: web::Data<AppState>,
+) -> HttpResponse {
+    let user_id = match extract_user_id(&req, &data.config.jwt_secret) {
+        Some(id) => id,
+        None => return HttpResponse::Unauthorized().json(serde_json::json!({
+            "error": "Unauthorized"
+        })),
+    };
+
+    let verification = sqlx::query_as::<_, EmailVerification>(
+        "SELECT * FROM email_verifications WHERE user_id = ? AND verified = 1 ORDER BY created_at DESC LIMIT 1"
+    )
+    .bind(&user_id)
+    .fetch_optional(&data.db)
+    .await;
+
+    match verification {
+        Ok(Some(_)) => HttpResponse::Ok().json(serde_json::json!({
+            "verified": true
+        })),
+        Ok(None) => HttpResponse::Ok().json(serde_json::json!({
+            "verified": false
+        })),
+        Err(e) => {
+            log::error!("Check verification status error: {}", e);
             HttpResponse::InternalServerError().json(serde_json::json!({
                 "error": "Internal server error"
             }))

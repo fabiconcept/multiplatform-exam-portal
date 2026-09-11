@@ -59,6 +59,15 @@ export const authApi = {
 
   resetPassword: (token: string, password: string) =>
     api<{ message: string }>('/auth/reset-password', { method: 'POST', body: { token, password } }),
+
+  sendVerification: (email: string) =>
+    api<{ message: string }>('/auth/send-verification', { method: 'POST', body: { email } }),
+
+  verifyEmail: (token: string) =>
+    api<{ message: string }>('/auth/verify-email', { method: 'POST', body: { token } }),
+
+  checkVerificationStatus: (token: string) =>
+    api<{ verified: boolean }>('/auth/verification-status', { token }),
 };
 
 export type User = {
