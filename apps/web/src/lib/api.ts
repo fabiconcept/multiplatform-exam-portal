@@ -53,6 +53,12 @@ export const authApi = {
 
   me: (token: string) =>
     api<User>('/auth/me', { token }),
+
+  forgotPassword: (email: string) =>
+    api<{ message: string; token?: string }>('/auth/forgot-password', { method: 'POST', body: { email } }),
+
+  resetPassword: (token: string, password: string) =>
+    api<{ message: string }>('/auth/reset-password', { method: 'POST', body: { token, password } }),
 };
 
 export type User = {

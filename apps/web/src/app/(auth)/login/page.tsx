@@ -3,17 +3,19 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
+import { Suspense } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
+import { toast } from 'sonner';
 import { useAuthStore } from '@/stores/auth';
 import { loginSchema, type LoginInput } from '@/lib/validations';
 
-export default function LoginPage() {
+function LoginForm() {
   const [showPassword, setShowPassword] = useState(false);
   const router = useRouter();
   const searchParams = useSearchParams();
   const redirect = searchParams.get('redirect') || '/dashboard';
-  const { login, isLoading, error, clearError } = useAuthStore();
+  const { login, isLoading } = useAuthStore();
 
   const {
     register,
@@ -21,12 +23,31 @@ export default function LoginPage() {
     formState: { errors },
   } = useForm<LoginInput>({
     resolver: zodResolver(loginSchema),
+    mode: 'onSubmit',
   });
 
   const onSubmit = async (data: LoginInput) => {
-    const success = await login(data.email, data.password);
-    if (success) {
-      router.push(redirect);
+    const loadingToast = toast.loading('Signing you in...');
+
+    try {
+      const success = await login(data.email, data.password);
+      toast.dismiss(loadingToast);
+
+      if (success) {
+        toast.success('Welcome back!', {
+          description: 'Redirecting to your dashboard...',
+        });
+        setTimeout(() => router.push(redirect), 1000);
+      } else {
+        toast.error('Login failed', {
+          description: 'Invalid email or password. Please try again.',
+        });
+      }
+    } catch {
+      toast.dismiss(loadingToast);
+      toast.error('Something went wrong', {
+        description: 'Please check your connection and try again.',
+      });
     }
   };
 
@@ -82,20 +103,6 @@ export default function LoginPage() {
             <h2 className="text-2xl font-bold mb-1">Welcome back</h2>
             <p className="text-neutral-500 mb-8">Sign in to continue your exam preparation</p>
 
-            {error && (
-              <div className="mb-6 p-4 bg-error-50 border border-error-200 rounded-xl text-error-700 text-sm flex items-center gap-2">
-                <svg className="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-                {error}
-                <button onClick={clearError} className="ml-auto">
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                  </svg>
-                </button>
-              </div>
-            )}
-
             <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
               <div>
                 <label htmlFor="email" className="block text-sm font-medium text-neutral-700 mb-2">
@@ -109,7 +116,12 @@ export default function LoginPage() {
                   placeholder="you@example.com"
                 />
                 {errors.email && (
-                  <p className="mt-1 text-sm text-error-600">{errors.email.message}</p>
+                  <p className="mt-1.5 text-sm text-red-500 flex items-center gap-1">
+                    <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                    </svg>
+                    {errors.email.message}
+                  </p>
                 )}
               </div>
 
@@ -143,7 +155,12 @@ export default function LoginPage() {
                   </button>
                 </div>
                 {errors.password && (
-                  <p className="mt-1 text-sm text-error-600">{errors.password.message}</p>
+                  <p className="mt-1.5 text-sm text-red-500 flex items-center gap-1">
+                    <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                    </svg>
+                    {errors.password.message}
+                  </p>
                 )}
               </div>
 
@@ -186,5 +203,17 @@ export default function LoginPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="w-8 h-8 border-4 border-primary-500 border-t-transparent rounded-full animate-spin" />
+      </div>
+    }>
+      <LoginForm />
+    </Suspense>
   );
 }

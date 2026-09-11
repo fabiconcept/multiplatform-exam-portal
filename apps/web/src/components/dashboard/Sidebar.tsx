@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
+import { toast } from 'sonner';
 import { useAuthStore } from '@/stores/auth';
 
 const navItems = [
@@ -72,6 +73,9 @@ export default function Sidebar() {
 
   const handleLogout = () => {
     logout();
+    toast.success('Logged out', {
+      description: 'You have been signed out successfully.',
+    });
     router.push('/login');
   };
 
