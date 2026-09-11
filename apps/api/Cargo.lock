@@ -889,6 +889,7 @@ dependencies = [
  "env_logger",
  "jsonwebtoken",
  "log",
+ "rand 0.8.8",
  "resend-rs",
  "serde",
  "serde_json",
