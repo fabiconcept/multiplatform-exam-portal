@@ -1,94 +1,101 @@
+'use client';
+
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
-
-const examPackages = [
-  {
-    id: 'utme',
-    name: 'JAMB/UTME',
-    description: '180 questions • 4 subjects • 2 hours',
-    subjects: 12,
-    questions: '30,000+',
-    progress: 65,
-    color: 'bg-primary-500',
-    preloaded: true,
-    image: '/images/jamb.webp',
-  },
-  {
-    id: 'waec',
-    name: 'WAEC/SSCE',
-    description: 'Senior secondary certificate exam',
-    subjects: 9,
-    questions: '15,000+',
-    progress: 40,
-    color: 'bg-accent-500',
-    preloaded: false,
-    image: '/images/waec.png',
-  },
-  {
-    id: 'postutme',
-    name: 'Post-UTME',
-    description: 'University screening test',
-    subjects: 6,
-    questions: '8,000+',
-    progress: 20,
-    color: 'bg-success-500',
-    preloaded: false,
-    image: '/images/post utme.webp',
-  },
-  {
-    id: 'bece',
-    name: 'BECE',
-    description: 'Junior WAEC/NECO certificate',
-    subjects: 8,
-    questions: '5,000+',
-    progress: 0,
-    color: 'bg-warning-500',
-    preloaded: false,
-    image: '/images/neco.webp',
-  },
-  {
-    id: 'ncee',
-    name: 'NCEE',
-    description: 'Common Entrance (Primary school)',
-    subjects: 4,
-    questions: '3,000+',
-    progress: 0,
-    color: 'bg-background-500',
-    preloaded: false,
-    image: '/images/ncee.webp',
-  },
-];
-
-const recentActivity = [
-  { subject: 'Mathematics', score: 85, time: '2 hours ago', mode: 'Exam', questions: '40/40' },
-  { subject: 'English Language', score: 72, time: 'Yesterday', mode: 'Study', questions: '35/60' },
-  { subject: 'Physics', score: 90, time: '2 days ago', mode: 'Exam', questions: '38/40' },
-  { subject: 'Chemistry', score: 68, time: '3 days ago', mode: 'Study', questions: '28/40' },
-];
-
-const keyPoints = [
-  { subject: 'Mathematics', topics: 15, lastStudied: '2 hours ago' },
-  { subject: 'English Language', topics: 12, lastStudied: 'Yesterday' },
-  { subject: 'Physics', topics: 10, lastStudied: '3 days ago' },
-];
+import toast from 'react-hot-toast';
+import { authApi, examApi, Exam } from '@/lib/api';
+import { useAuthStore } from '@/stores/auth';
 
 export default function DashboardPage() {
+  const { user, token } = useAuthStore();
+  const [usageStatus, setUsageStatus] = useState<{ total_used: number; limit: number; remaining: number; is_activated: boolean } | null>(null);
+  const [exams, setExams] = useState<Exam[]>([]);
+  const [examsLoading, setExamsLoading] = useState(true);
+
+  const isActivated = user?.is_active || false;
+
+  useEffect(() => {
+    if (!token) return;
+    authApi.usageStatus(token).then(setUsageStatus).catch(() => {});
+  }, [token]);
+
+  useEffect(() => {
+    if (!token) return;
+    setExamsLoading(true);
+    examApi.listExams(token)
+      .then(res => setExams(res.exams || []))
+      .catch(() => {})
+      .finally(() => setExamsLoading(false));
+  }, [token]);
+
   return (
     <div className="p-8">
       {/* Header */}
       <div className="flex items-center justify-between mb-8">
         <div>
-          <h1 className="text-3xl font-bold text-neutral-900 mb-1">Welcome back, Adebayo!</h1>
+          <h1 className="text-3xl font-bold text-neutral-900 mb-1">Welcome back, {user?.name?.split(' ')[0] || 'Student'}!</h1>
           <p className="text-neutral-600">Continue your exam preparation journey</p>
         </div>
         <div className="flex items-center gap-3">
           <div className="px-4 py-2 bg-primary-100 rounded-full">
-            <span className="text-sm font-medium text-primary-700">JAMB/UTME Package</span>
+            <span className="text-sm font-medium text-primary-700">{user?.target_exam || 'JAMB/UTME'} Package</span>
           </div>
-          <div className="px-4 py-2 bg-success-100 rounded-full">
-            <span className="text-sm font-medium text-success-700">Activated ✓</span>
-          </div>
+          {isActivated ? (
+            <div className="px-4 py-2 bg-success-100 rounded-full">
+              <span className="text-sm font-medium text-success-700">Activated ✓</span>
+            </div>
+          ) : (
+            <div className="px-4 py-2 bg-warning-100 rounded-full">
+              <span className="text-sm font-medium text-warning-700">Free Plan</span>
+            </div>
+          )}
         </div>
       </div>
+
+      {/* Activation Banner */}
+      {!isActivated && (
+        <div className="bg-gradient-to-r from-warning-50 to-warning-100 border border-warning-200 rounded-2xl p-6 mb-8">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              <div className="w-12 h-12 bg-warning-200 rounded-xl flex items-center justify-center">
+                <svg className="w-6 h-6 text-warning-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+              </div>
+              <div>
+                <h3 className="font-semibold text-warning-900">
+                  {usageStatus && usageStatus.remaining > 0
+                    ? `${usageStatus.remaining} of ${usageStatus.limit} free questions remaining`
+                    : 'Start with 5 free questions'}
+                </h3>
+                <p className="text-sm text-warning-700">
+                  Activate your account for unlimited practice questions and full features.
+                </p>
+              </div>
+            </div>
+            <button
+              onClick={() => toast.success('Activation flow coming soon!')}
+              className="px-6 py-3 bg-neutral-900 text-white font-semibold rounded-full hover:bg-neutral-800 transition-all whitespace-nowrap"
+            >
+              Activate Account
+            </button>
+          </div>
+          {usageStatus && (
+            <>
+              <div className="mt-4 h-2 bg-warning-200 rounded-full overflow-hidden">
+                <div
+                  className="h-full bg-warning-500 rounded-full transition-all"
+                  style={{ width: `${(usageStatus.total_used / usageStatus.limit) * 100}%` }}
+                />
+              </div>
+              <div className="flex justify-between mt-1">
+                <span className="text-xs text-warning-600">{usageStatus.total_used} used</span>
+                <span className="text-xs text-warning-600">{usageStatus.limit} limit</span>
+              </div>
+            </>
+          )}
+        </div>
+      )}
 
       {/* Stats Grid */}
       <div className="grid grid-cols-5 gap-4 mb-8">
@@ -98,7 +105,7 @@ export default function DashboardPage() {
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
             </svg>
           </div>
-          <p className="text-2xl font-bold text-neutral-900">156</p>
+          <p className="text-2xl font-bold text-neutral-900">{usageStatus?.total_used || 0}</p>
           <p className="text-xs text-neutral-500">Questions Done</p>
         </div>
         <div className="bg-white rounded-2xl p-5 shadow-sm">
@@ -149,53 +156,71 @@ export default function DashboardPage() {
             </Link>
           </div>
           <div className="space-y-3">
-            {examPackages.map((pkg) => (
-              <Link
-                key={pkg.id}
-                href={`/dashboard/practice?exam=${pkg.id}`}
-                className="block bg-white rounded-2xl p-5 shadow-sm hover:shadow-md transition-shadow"
-              >
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-4">
-                    <div className="w-12 h-12 rounded-xl flex items-center justify-center overflow-hidden">
-                      <img src={pkg.image} alt={pkg.name} className="w-10 h-10 object-contain" />
-                    </div>
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <h3 className="font-semibold text-neutral-900">{pkg.name}</h3>
-                        {pkg.preloaded && (
-                          <span className="text-xs px-2 py-0.5 bg-primary-100 text-primary-700 rounded-full font-medium">
-                            Preloaded
-                          </span>
-                        )}
+            {examsLoading ? (
+              Array.from({ length: 3 }).map((_, i) => (
+                <div key={i} className="bg-white rounded-2xl p-5 shadow-sm animate-pulse">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-4">
+                      <div className="w-12 h-12 bg-neutral-200 rounded-xl" />
+                      <div>
+                        <div className="h-4 bg-neutral-200 rounded w-32 mb-2" />
+                        <div className="h-3 bg-neutral-100 rounded w-48" />
                       </div>
-                      <p className="text-sm text-neutral-500">{pkg.description}</p>
                     </div>
-                  </div>
-                  <div className="flex items-center gap-8">
-                    <div className="text-center">
-                      <p className="text-lg font-bold text-neutral-900">{pkg.subjects}</p>
-                      <p className="text-xs text-neutral-500">Subjects</p>
-                    </div>
-                    <div className="text-center">
-                      <p className="text-lg font-bold text-neutral-900">{pkg.questions}</p>
-                      <p className="text-xs text-neutral-500">Questions</p>
-                    </div>
-                    <div className="w-32">
-                      <div className="flex items-center justify-between mb-1">
-                        <span className="text-xs text-neutral-500">{pkg.progress}%</span>
+                    <div className="flex items-center gap-8">
+                      <div className="text-center">
+                        <div className="h-5 bg-neutral-200 rounded w-8 mx-auto mb-1" />
+                        <div className="h-2 bg-neutral-100 rounded w-12" />
                       </div>
-                      <div className="h-2 bg-neutral-100 rounded-full overflow-hidden">
-                        <div
-                          className={`h-full ${pkg.color} rounded-full`}
-                          style={{ width: `${pkg.progress}%` }}
-                        />
+                      <div className="text-center">
+                        <div className="h-5 bg-neutral-200 rounded w-8 mx-auto mb-1" />
+                        <div className="h-2 bg-neutral-100 rounded w-14" />
                       </div>
                     </div>
                   </div>
                 </div>
-              </Link>
-            ))}
+              ))
+            ) : exams.length > 0 ? (
+              exams.map((exam) => (
+                <Link
+                  key={exam.id}
+                  href={`/dashboard/practice?exam=${exam.slug}`}
+                  className="block bg-white rounded-2xl p-5 shadow-sm hover:shadow-md transition-shadow"
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-4">
+                      <div className="w-12 h-12 rounded-xl flex items-center justify-center overflow-hidden bg-primary-50">
+                        {exam.icon_url ? (
+                          <img src={exam.icon_url} alt={exam.name} className="w-10 h-10 object-contain" />
+                        ) : (
+                          <svg className="w-6 h-6 text-primary-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+                          </svg>
+                        )}
+                      </div>
+                      <div>
+                        <h3 className="font-semibold text-neutral-900">{exam.name}</h3>
+                        <p className="text-sm text-neutral-500">{exam.description || 'Exam preparation package'}</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-8">
+                      <div className="text-center">
+                        <p className="text-lg font-bold text-neutral-900">{exam.subject_count ?? 0}</p>
+                        <p className="text-xs text-neutral-500">Subjects</p>
+                      </div>
+                      <div className="text-center">
+                        <p className="text-lg font-bold text-neutral-900">{exam.question_count ?? 0}</p>
+                        <p className="text-xs text-neutral-500">Questions</p>
+                      </div>
+                    </div>
+                  </div>
+                </Link>
+              ))
+            ) : (
+              <div className="bg-white rounded-2xl p-8 shadow-sm text-center">
+                <p className="text-neutral-500 text-sm">No exam packages available yet.</p>
+              </div>
+            )}
           </div>
         </div>
 
@@ -204,9 +229,13 @@ export default function DashboardPage() {
           {/* Quick Start */}
           <div className="bg-gradient-to-br from-accent-500 to-accent-600 rounded-2xl p-6 text-white">
             <h3 className="font-bold text-lg mb-2">Quick Start</h3>
-            <p className="text-white/80 text-sm mb-4">Practice UTME with 4 subjects</p>
+            <p className="text-white/80 text-sm mb-4">
+              {exams.length > 0
+                ? `Practice ${exams[0].name} with ${exams[0].subject_count ?? 0} subjects`
+                : 'Practice with available exam packages'}
+            </p>
             <Link
-              href="/dashboard/practice?exam=utme"
+              href={exams.length > 0 ? `/dashboard/practice?exam=${exams[0].slug}` : '/dashboard/practice'}
               className="block w-full py-3 bg-white text-accent-600 rounded-xl font-semibold text-center hover:bg-white/90 transition-colors"
             >
               Start Practice →
@@ -218,15 +247,9 @@ export default function DashboardPage() {
             <h3 className="font-semibold text-neutral-900 mb-3">Key Points</h3>
             <p className="text-xs text-neutral-500 mb-3">Study materials from major subjects</p>
             <div className="space-y-2">
-              {keyPoints.map((kp) => (
-                <div key={kp.subject} className="flex items-center justify-between p-3 bg-neutral-50 rounded-xl">
-                  <div>
-                    <p className="font-medium text-neutral-900 text-sm">{kp.subject}</p>
-                    <p className="text-xs text-neutral-500">{kp.topics} topics</p>
-                  </div>
-                  <span className="text-xs text-neutral-400">{kp.lastStudied}</span>
-                </div>
-              ))}
+              <div className="p-3 bg-neutral-50 rounded-xl text-center">
+                <p className="text-sm text-neutral-500">Start practicing to see your key points</p>
+              </div>
             </div>
             <Link href="/dashboard/keypoints" className="block mt-3 text-center text-sm text-primary-600 hover:text-primary-700 font-medium">
               View all topics →
@@ -266,40 +289,9 @@ export default function DashboardPage() {
           </Link>
         </div>
         <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
-          <table className="w-full">
-            <thead>
-              <tr className="border-b border-neutral-100">
-                <th className="text-left py-3 px-5 text-xs font-medium text-neutral-500 uppercase">Subject</th>
-                <th className="text-left py-3 px-5 text-xs font-medium text-neutral-500 uppercase">Mode</th>
-                <th className="text-left py-3 px-5 text-xs font-medium text-neutral-500 uppercase">Score</th>
-                <th className="text-left py-3 px-5 text-xs font-medium text-neutral-500 uppercase">Questions</th>
-                <th className="text-left py-3 px-5 text-xs font-medium text-neutral-500 uppercase">Time</th>
-              </tr>
-            </thead>
-            <tbody>
-              {recentActivity.map((activity, index) => (
-                <tr key={index} className="border-b border-neutral-50 last:border-0 hover:bg-neutral-50">
-                  <td className="py-3 px-5 font-medium text-neutral-900">{activity.subject}</td>
-                  <td className="py-3 px-5">
-                    <span className={`text-xs font-medium px-2.5 py-1 rounded-full ${
-                      activity.mode === 'Exam' ? 'bg-accent-100 text-accent-700' : 'bg-primary-100 text-primary-700'
-                    }`}>
-                      {activity.mode}
-                    </span>
-                  </td>
-                  <td className="py-3 px-5">
-                    <span className={`font-semibold ${
-                      activity.score >= 80 ? 'text-success-600' : activity.score >= 60 ? 'text-warning-600' : 'text-error-600'
-                    }`}>
-                      {activity.score}%
-                    </span>
-                  </td>
-                  <td className="py-3 px-5 text-neutral-600 text-sm">{activity.questions}</td>
-                  <td className="py-3 px-5 text-neutral-500 text-sm">{activity.time}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <div className="p-8 text-center">
+            <p className="text-neutral-500 text-sm">No recent activity yet. Start practicing to see your results here.</p>
+          </div>
         </div>
       </div>
     </div>

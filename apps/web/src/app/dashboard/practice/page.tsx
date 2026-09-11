@@ -1,154 +1,24 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import toast from 'react-hot-toast';
+import { authApi, examApi, Exam, Subject } from '@/lib/api';
+import { useAuthStore } from '@/stores/auth';
 
-// ─── Exam Type Config ────────────────────────────────────────────────────────
-type ExamType = 'utme' | 'mock' | 'postutme' | 'waec' | 'bece' | 'ncee';
+// ─── Types ──────────────────────────────────────────────────────────────────
 type Step = 'type' | 'subjects' | 'config' | 'practice';
 type PracticeMode = 'study' | 'exam';
 
 interface ExamConfig {
-  examType: ExamType;
+  examType: string;
   subjects: string[];
   session: string;
   questionCount: number;
-  duration: number; // minutes
+  duration: number;
   mode: PracticeMode;
 }
 
-const ExamIcon = ({ type, className = 'w-6 h-6' }: { type: ExamType; className?: string }) => {
-  const icons: Record<ExamType, JSX.Element> = {
-    utme: <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" /></svg>,
-    mock: <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" /></svg>,
-    postutme: <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 14l9-5-9-5-9 5 9 5z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 14l6.16-3.422a12.083 12.083 0 01.665 6.479A11.952 11.952 0 0012 20.055a11.952 11.952 0 00-6.824-2.998 12.078 12.078 0 01.665-6.479L12 14z" /></svg>,
-    waec: <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>,
-    bece: <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" /></svg>,
-    ncee: <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" /></svg>,
-  };
-  return icons[type];
-};
-
-const examTypeMeta: Record<ExamType, { name: string; description: string; color: string }> = {
-  utme:    { name: 'JAMB/UTME',     description: '180 questions, 4 subjects, 2 hours',    color: 'bg-primary-500' },
-  mock:    { name: 'JAMB Mock',      description: 'Practice for CBT mock exam',            color: 'bg-accent-500' },
-  postutme:{ name: 'Post-UTME',      description: 'University screening practice',         color: 'bg-success-500' },
-  waec:    { name: 'WAEC/SSCE',      description: 'Senior secondary certificate exam',     color: 'bg-warning-500' },
-  bece:    { name: 'BECE',           description: 'Junior secondary certificate exam',     color: 'bg-background-500' },
-  ncee:    { name: 'NCEE',           description: 'National Common Entrance Examination',  color: 'bg-neutral-500' },
-};
-
-// ─── Subject Data ────────────────────────────────────────────────────────────
-const jambSubjects = [
-  { name: 'Use of English',           sessions: 30, compulsory: true },
-  { name: 'Mathematics',              sessions: 25 },
-  { name: 'Physics',                  sessions: 26 },
-  { name: 'Chemistry',                sessions: 26 },
-  { name: 'Biology',                  sessions: 26 },
-  { name: 'Economics',                sessions: 26 },
-  { name: 'Government',               sessions: 26 },
-  { name: 'Literature in English',    sessions: 35 },
-  { name: 'Christian Religious Studies', sessions: 26 },
-  { name: 'Islamic Studies',          sessions: 24 },
-  { name: 'Commerce',                 sessions: 26 },
-  { name: 'Geography',                sessions: 24 },
-  { name: 'History',                  sessions: 15 },
-  { name: 'Home Economics',           sessions: 12 },
-  { name: 'Principles of Accounts',   sessions: 25 },
-  { name: 'Computer Studies',         sessions: 6 },
-  { name: 'Physical and Health Education', sessions: 7 },
-  { name: 'French',                   sessions: 13 },
-  { name: 'Agriculture',              sessions: 11 },
-  { name: 'Art',                      sessions: 9 },
-  { name: 'Igbo Language',            sessions: 13 },
-  { name: 'Yoruba Language',          sessions: 12 },
-  { name: 'Hausa',                    sessions: 13 },
-  { name: 'Arabic',                   sessions: 6 },
-  { name: 'Music',                    sessions: 5 },
-  { name: 'Lekki Headmaster',         sessions: 4 },
-];
-
-const waecSubjects = [
-  { name: 'Economics',                    sessions: 15 },
-  { name: 'Commerce',                     sessions: 15 },
-  { name: 'Biology',                      sessions: 15 },
-  { name: 'General Mathematics',          sessions: 15 },
-  { name: 'Civic Education',              sessions: 12 },
-  { name: 'Christian Religious Studies',  sessions: 15 },
-  { name: 'Animal Husbandry',             sessions: 10 },
-  { name: 'Computer Studies',             sessions: 12 },
-  { name: 'English Language',             sessions: 15 },
-  { name: 'Financial Accounting',         sessions: 15 },
-  { name: 'Geography',                    sessions: 15 },
-  { name: 'Government',                   sessions: 15 },
-  { name: 'Marketing',                    sessions: 10 },
-  { name: 'Agricultural Science',         sessions: 14 },
-  { name: 'Physics',                      sessions: 15 },
-  { name: 'Chemistry',                    sessions: 15 },
-  { name: 'Data Processing',              sessions: 12 },
-  { name: 'Literature in English',        sessions: 15 },
-  { name: 'Office Practice',              sessions: 8 },
-  { name: 'Visual Art',                   sessions: 10 },
-  { name: 'Book Keeping',                 sessions: 11 },
-  { name: 'Catering Craft Practice',      sessions: 13 },
-  { name: 'Fisheries',                    sessions: 11 },
-  { name: 'Foods and Nutrition',          sessions: 7 },
-  { name: 'French',                       sessions: 14 },
-  { name: 'Further Mathematics',          sessions: 5 },
-  { name: 'Hausa',                        sessions: 4 },
-  { name: 'Health Education',             sessions: 8 },
-  { name: 'History',                      sessions: 11 },
-  { name: 'Home Management',              sessions: 14 },
-  { name: 'Igbo',                         sessions: 18 },
-  { name: 'Islamic Studies',              sessions: 12 },
-  { name: 'Music',                        sessions: 5 },
-  { name: 'Yoruba',                       sessions: 18 },
-  { name: 'Technical Drawing',            sessions: 5 },
-  { name: 'Garment Making',               sessions: 4 },
-  { name: 'Arabic',                       sessions: 12 },
-];
-
-const beceSubjects = [
-  { name: 'Basic Science',                   sessions: 11 },
-  { name: 'English Language',                sessions: 18 },
-  { name: 'Mathematics',                     sessions: 19 },
-  { name: 'Agricultural Science',            sessions: 11 },
-  { name: 'Creative Arts & Culture',         sessions: 7 },
-  { name: 'Basic Technology',                sessions: 10 },
-  { name: 'Business Studies',                sessions: 20 },
-  { name: 'Christian Religious Studies',     sessions: 17 },
-  { name: 'Civic Education',                 sessions: 11 },
-  { name: 'Home Economics',                  sessions: 11 },
-  { name: 'Physical and Health Education',   sessions: 7 },
-  { name: 'Social Studies',                  sessions: 11 },
-  { name: 'Computer Studies',                sessions: 10 },
-  { name: 'History',                         sessions: 6 },
-  { name: 'French',                          sessions: 7 },
-  { name: 'Hausa L2',                        sessions: 1 },
-  { name: 'Hausa L1',                        sessions: 2 },
-  { name: 'Security Education',              sessions: 2 },
-  { name: 'Igbo L1',                         sessions: 3 },
-  { name: 'Igbo L2',                         sessions: 1 },
-  { name: 'Islamic Religious Studies',       sessions: 6 },
-  { name: 'Yoruba',                          sessions: 3 },
-];
-
-const nceeSubjects = [
-  { name: 'English Language and Social Studies',                sessions: 15 },
-  { name: 'Verbal',                                             sessions: 15 },
-  { name: 'Mathematics and General Science',                   sessions: 15 },
-  { name: 'Quantitative Reasoning and Vocational Aptitude',    sessions: 15 },
-];
-
-const subjectsByExam: Record<ExamType, typeof jambSubjects> = {
-  utme: jambSubjects,
-  mock: jambSubjects,
-  postutme: jambSubjects,
-  waec: waecSubjects,
-  bece: beceSubjects,
-  ncee: nceeSubjects,
-};
-
+// ─── Constants ──────────────────────────────────────────────────────────────
 const durations = [
   { label: '30 min', value: 30 },
   { label: '1 hour', value: 60 },
@@ -199,8 +69,35 @@ const sampleQuestions = [
   },
 ];
 
-// ─── Component ───────────────────────────────────────────────────────────────
+// ─── Default Icon ───────────────────────────────────────────────────────────
+const DefaultExamIcon = ({ className = 'w-5 h-5' }: { className?: string }) => (
+  <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+  </svg>
+);
+
+// ─── Loading Skeletons ──────────────────────────────────────────────────────
+const ExamCardSkeleton = () => (
+  <div className="p-6 rounded-2xl border-2 border-neutral-200 bg-white animate-pulse">
+    <div className="w-10 h-10 bg-neutral-200 rounded-xl mb-3" />
+    <div className="h-5 bg-neutral-200 rounded w-3/4 mb-2" />
+    <div className="h-4 bg-neutral-100 rounded w-full" />
+  </div>
+);
+
+const SubjectCardSkeleton = () => (
+  <div className="p-4 rounded-2xl border-2 border-neutral-200 bg-white animate-pulse">
+    <div className="flex items-center justify-between mb-1">
+      <div className="h-4 bg-neutral-200 rounded w-2/3" />
+      <div className="w-5 h-5 bg-neutral-200 rounded-full" />
+    </div>
+    <div className="h-3 bg-neutral-100 rounded w-1/2" />
+  </div>
+);
+
+// ─── Component ──────────────────────────────────────────────────────────────
 export default function PracticePage() {
+  const { token, user } = useAuthStore();
   const [step, setStep] = useState<Step>('type');
   const [config, setConfig] = useState<ExamConfig>({
     examType: 'utme',
@@ -218,14 +115,88 @@ export default function PracticePage() {
   const [calcDisplay, setCalcDisplay] = useState('0');
   const [subjectSearch, setSubjectSearch] = useState('');
 
-  const availableSubjects = subjectsByExam[config.examType];
-  const filteredSubjects = availableSubjects.filter((s) =>
+  // ─── API Data State ──────────────────────────────────────────────────────
+  const [exams, setExams] = useState<Exam[]>([]);
+  const [examsLoading, setExamsLoading] = useState(true);
+  const [subjects, setSubjects] = useState<Subject[]>([]);
+  const [subjectsLoading, setSubjectsLoading] = useState(false);
+
+  // ─── Activation / Usage State ──────────────────────────────────────────
+  const [usageStatus, setUsageStatus] = useState<{ total_used: number; limit: number; remaining: number; is_activated: boolean } | null>(null);
+  const [showActivationModal, setShowActivationModal] = useState(false);
+  const [blockedQuestion, setBlockedQuestion] = useState(false);
+
+  const isActivated = user?.is_active || usageStatus?.is_activated || false;
+
+  // ─── Helper: find current exam by slug ─────────────────────────────────
+  const currentExam = exams.find(e => e.slug === config.examType);
+
+  const fetchUsageStatus = useCallback(async () => {
+    if (!token) return;
+    try {
+      const status = await authApi.usageStatus(token);
+      setUsageStatus(status);
+    } catch {
+      // ignore
+    }
+  }, [token]);
+
+  // ─── Fetch exams on mount ──────────────────────────────────────────────
+  useEffect(() => {
+    if (!token) return;
+    setExamsLoading(true);
+    examApi.listExams(token)
+      .then(res => setExams(res.exams || []))
+      .catch(() => toast.error('Failed to load exams'))
+      .finally(() => setExamsLoading(false));
+  }, [token]);
+
+  useEffect(() => {
+    fetchUsageStatus();
+  }, [fetchUsageStatus]);
+
+  const trackQuestionUsage = useCallback(async (questionKey: string) => {
+    if (!token || isActivated) return;
+    try {
+      const res = await authApi.trackUsage(token, questionKey, config.examType);
+      if (!res.allowed) {
+        setBlockedQuestion(true);
+        setShowActivationModal(true);
+        return false;
+      }
+      if (res.remaining !== undefined) {
+        setUsageStatus((prev) => prev ? { ...prev, total_used: res.total_used ?? prev.total_used, remaining: res.remaining ?? prev.remaining } : prev);
+      }
+      return true;
+    } catch {
+      return true;
+    }
+  }, [token, isActivated, config.examType]);
+
+  useEffect(() => {
+    if (step === 'practice' && !isActivated) {
+      const qKey = `${config.examType}-${currentQuestion}`;
+      trackQuestionUsage(qKey);
+    }
+  }, [step, currentQuestion, isActivated, config.examType, trackQuestionUsage]);
+
+  // ─── Select exam handler ───────────────────────────────────────────────
+  const handleSelectExam = (exam: Exam) => {
+    setConfig(prev => ({ ...prev, examType: exam.slug, subjects: [] }));
+    setSubjectsLoading(true);
+    examApi.listExamSubjects(token!, exam.id)
+      .then(res => setSubjects(res.subjects || []))
+      .catch(() => toast.error('Failed to load subjects'))
+      .finally(() => setSubjectsLoading(false));
+    setStep('subjects');
+  };
+
+  // ─── Subject filtering & selection ─────────────────────────────────────
+  const filteredSubjects = subjects.filter((s) =>
     s.name.toLowerCase().includes(subjectSearch.toLowerCase())
   );
 
   const toggleSubject = (name: string) => {
-    const subject = availableSubjects.find((s) => s.name === name);
-    if (subject?.compulsory) return;
     setConfig((prev) => ({
       ...prev,
       subjects: prev.subjects.includes(name)
@@ -235,21 +206,10 @@ export default function PracticePage() {
   };
 
   const getSubjectLimit = () => {
-    switch (config.examType) {
-      case 'utme':
-      case 'mock':
-      case 'postutme':
-        return 4;
-      case 'waec':
-      case 'bece':
-        return 9;
-      case 'ncee':
-        return 4;
-      default:
-        return 9;
-    }
+    return 9;
   };
 
+  // ─── Calculator ────────────────────────────────────────────────────────
   const handleCalcInput = (value: string) => {
     if (value === 'C') setCalcDisplay('0');
     else if (value === 'DEL') setCalcDisplay((prev) => (prev.length > 1 ? prev.slice(0, -1) : '0'));
@@ -258,6 +218,7 @@ export default function PracticePage() {
     } else setCalcDisplay((prev) => (prev === '0' ? value : prev + value));
   };
 
+  // ─── Keyboard shortcuts ────────────────────────────────────────────────
   const handleKeyPress = (key: string) => {
     const keyMap: Record<string, string> = { a: 'A', b: 'B', c: 'C', d: 'D', p: 'prev', n: 'next', s: 'skip', r: 'reveal' };
     const action = keyMap[key.toLowerCase()];
@@ -272,11 +233,90 @@ export default function PracticePage() {
     setShowExplanation(true);
   };
 
-  // ─── Practice / CBT View ─────────────────────────────────────────────────
+  // ─── Practice / CBT View ──────────────────────────────────────────────
   if (step === 'practice') {
     const q = sampleQuestions[currentQuestion % sampleQuestions.length];
     return (
       <div className="p-8" onKeyDown={(e) => handleKeyPress(e.key)} tabIndex={0}>
+        {/* Activation Modal */}
+        {showActivationModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+            <div className="bg-white rounded-3xl p-8 max-w-md w-full mx-4 shadow-2xl text-center">
+              <div className="w-16 h-16 bg-warning-100 rounded-full flex items-center justify-center mx-auto mb-6">
+                <svg className="w-8 h-8 text-warning-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+              </div>
+              <h2 className="text-2xl font-bold text-neutral-900 mb-2">Question Limit Reached</h2>
+              <p className="text-neutral-500 mb-2">
+                You&apos;ve used all <span className="font-semibold">{usageStatus?.limit || 5}</span> free questions.
+              </p>
+              <p className="text-neutral-500 mb-6">
+                Activate your account to unlock unlimited practice questions, full exam modes, and progress tracking.
+              </p>
+              <div className="bg-primary-50 rounded-2xl p-4 mb-6">
+                <p className="text-sm text-primary-700 font-medium">Activation includes:</p>
+                <ul className="mt-2 space-y-1 text-sm text-primary-600">
+                  <li>• Unlimited practice questions</li>
+                  <li>• Full exam simulation</li>
+                  <li>• Progress tracking & analytics</li>
+                  <li>• Offline practice mode</li>
+                </ul>
+              </div>
+              <button
+                onClick={() => {
+                  toast.success('Activation flow coming soon!');
+                  setShowActivationModal(false);
+                }}
+                className="w-full py-3 bg-neutral-900 text-white font-semibold rounded-full hover:bg-neutral-800 transition-all mb-3"
+              >
+                Activate Account
+              </button>
+              <button
+                onClick={() => {
+                  setShowActivationModal(false);
+                  setStep('type');
+                  setCurrentQuestion(0);
+                  setSelectedAnswer(null);
+                  setShowExplanation(false);
+                  setBlockedQuestion(false);
+                }}
+                className="w-full py-3 text-neutral-500 font-medium hover:text-neutral-700 transition-colors"
+              >
+                Back to practice menu
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Usage Banner (non-activated users) */}
+        {!isActivated && usageStatus && (
+          <div className={`rounded-2xl p-4 mb-4 flex items-center justify-between ${
+            blockedQuestion ? 'bg-warning-50 border-2 border-warning-300' : 'bg-neutral-50 border border-neutral-200'
+          }`}>
+            <div className="flex items-center gap-3">
+              <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
+                blockedQuestion ? 'bg-warning-100' : 'bg-neutral-200'
+              }`}>
+                <svg className={`w-4 h-4 ${blockedQuestion ? 'text-warning-600' : 'text-neutral-500'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+              </div>
+              <div>
+                <p className={`text-sm font-medium ${blockedQuestion ? 'text-warning-800' : 'text-neutral-700'}`}>
+                  {blockedQuestion ? 'Limit reached' : `${usageStatus.remaining} of ${usageStatus.limit} free questions remaining`}
+                </p>
+                <p className="text-xs text-neutral-500">Activate your account for unlimited access</p>
+              </div>
+            </div>
+            <button
+              onClick={() => setShowActivationModal(true)}
+              className="px-4 py-2 bg-neutral-900 text-white text-sm font-medium rounded-full hover:bg-neutral-800 transition-all"
+            >
+              Activate
+            </button>
+          </div>
+        )}
         <div className="bg-white rounded-2xl p-4 shadow-sm mb-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
@@ -287,7 +327,7 @@ export default function PracticePage() {
               </button>
               <div>
                 <h2 className="font-semibold text-neutral-900">
-                  {config.mode === 'exam' ? 'Exam Mode' : 'Study Mode'} — {examTypeMeta[config.examType].name}
+                  {config.mode === 'exam' ? 'Exam Mode' : 'Study Mode'} — {currentExam?.name || config.examType}
                 </h2>
                 <p className="text-xs text-neutral-500">Question {currentQuestion + 1} of {config.questionCount}</p>
               </div>
@@ -423,7 +463,7 @@ export default function PracticePage() {
     );
   }
 
-  // ─── Config Step (Session + Duration + Count) ─────────────────────────────
+  // ─── Config Step (Session + Duration + Count) ──────────────────────────
   if (step === 'config') {
     return (
       <div className="p-8 max-w-4xl mx-auto">
@@ -432,16 +472,22 @@ export default function PracticePage() {
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
             Back to subjects
           </button>
-          <h1 className="text-3xl font-bold text-neutral-900 mb-2">Build your {examTypeMeta[config.examType].name} practice exam</h1>
+          <h1 className="text-3xl font-bold text-neutral-900 mb-2">Build your {currentExam?.name || config.examType} practice exam</h1>
           <p className="text-neutral-600">Select a past-question session and set your preferred question count.</p>
         </div>
 
         {/* Banner */}
         <div className="bg-gradient-to-br from-neutral-900 to-neutral-800 rounded-2xl p-6 text-white mb-8">
           <div className="flex items-center gap-6">
-            <div className="w-12 h-12 bg-white/10 rounded-xl flex items-center justify-center"><ExamIcon type={config.examType} className="w-7 h-7 text-white" /></div>
+            <div className="w-12 h-12 bg-white/10 rounded-xl flex items-center justify-center">
+              {currentExam?.icon_url ? (
+                <img src={currentExam.icon_url} alt="" className="w-7 h-7 object-contain" />
+              ) : (
+                <DefaultExamIcon className="w-7 h-7 text-white" />
+              )}
+            </div>
             <div className="flex-1">
-              <h2 className="text-xl font-bold">{examTypeMeta[config.examType].name}</h2>
+              <h2 className="text-xl font-bold">{currentExam?.name || config.examType}</h2>
               <p className="text-neutral-400">{config.subjects.length} subject{config.subjects.length !== 1 ? 's' : ''} selected</p>
             </div>
             <div className="text-right">
@@ -521,11 +567,10 @@ export default function PracticePage() {
     );
   }
 
-  // ─── Subject Selection Step ───────────────────────────────────────────────
+  // ─── Subject Selection Step ────────────────────────────────────────────
   if (step === 'subjects') {
     const limit = getSubjectLimit();
-    const compulsory = availableSubjects.filter((s) => s.compulsory);
-    const selectedCount = config.subjects.length + compulsory.length;
+    const selectedCount = config.subjects.length;
 
     return (
       <div className="p-8 max-w-5xl mx-auto">
@@ -534,16 +579,22 @@ export default function PracticePage() {
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
             Back to exam types
           </button>
-          <h1 className="text-3xl font-bold text-neutral-900 mb-2">Build your {examTypeMeta[config.examType].name} practice exam</h1>
+          <h1 className="text-3xl font-bold text-neutral-900 mb-2">Build your {currentExam?.name || config.examType} practice exam</h1>
           <p className="text-neutral-600">Select subjects, choose a past-question session and set your preferred question count.</p>
         </div>
 
         {/* Banner */}
         <div className="bg-gradient-to-br from-neutral-900 to-neutral-800 rounded-2xl p-6 text-white mb-8">
           <div className="flex items-center gap-6">
-            <div className="w-12 h-12 bg-white/10 rounded-xl flex items-center justify-center"><ExamIcon type={config.examType} className="w-7 h-7 text-white" /></div>
+            <div className="w-12 h-12 bg-white/10 rounded-xl flex items-center justify-center">
+              {currentExam?.icon_url ? (
+                <img src={currentExam.icon_url} alt="" className="w-7 h-7 object-contain" />
+              ) : (
+                <DefaultExamIcon className="w-7 h-7 text-white" />
+              )}
+            </div>
             <div className="flex-1">
-              <h2 className="text-xl font-bold">{examTypeMeta[config.examType].name}</h2>
+              <h2 className="text-xl font-bold">{currentExam?.name || config.examType}</h2>
               <p className="text-neutral-400">Continues in the app &middot; Offline practice and full analysis</p>
             </div>
             <div className="text-right">
@@ -578,66 +629,53 @@ export default function PracticePage() {
             <span className="text-sm text-neutral-500">{selectedCount} selected</span>
           </div>
 
-          {/* Compulsory Subjects */}
-          {compulsory.length > 0 && (
-            <div className="mb-4">
-              <p className="text-xs font-medium text-primary-600 uppercase tracking-wider mb-2">Compulsory</p>
-              <div className="grid grid-cols-4 gap-3">
-                {compulsory.map((subject) => (
-                  <div key={subject.name} className="p-4 rounded-2xl border-2 border-primary-500 bg-primary-50 cursor-default">
+          {subjectsLoading ? (
+            <div className="grid grid-cols-4 gap-3">
+              {Array.from({ length: 8 }).map((_, i) => (
+                <SubjectCardSkeleton key={i} />
+              ))}
+            </div>
+          ) : (
+            <div className="grid grid-cols-4 gap-3">
+              {filteredSubjects.map((subject) => {
+                const isSelected = config.subjects.includes(subject.name);
+                const isMaxed = !isSelected && selectedCount >= limit;
+                return (
+                  <button
+                    key={subject.id}
+                    onClick={() => toggleSubject(subject.name)}
+                    disabled={isMaxed}
+                    className={`p-4 rounded-2xl border-2 text-left transition-all ${
+                      isSelected ? 'border-primary-500 bg-primary-50'
+                        : isMaxed ? 'border-neutral-100 bg-neutral-50 opacity-50 cursor-not-allowed'
+                        : 'border-neutral-200 bg-white hover:border-neutral-300'
+                    }`}
+                  >
                     <div className="flex items-center justify-between mb-1">
                       <h3 className="font-medium text-sm text-neutral-900">{subject.name}</h3>
-                      <div className="w-5 h-5 bg-primary-500 rounded-full flex items-center justify-center">
-                        <svg className="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20">
-                          <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                        </svg>
-                      </div>
+                      {isSelected && (
+                        <div className="w-5 h-5 bg-primary-500 rounded-full flex items-center justify-center">
+                          <svg className="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20">
+                            <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                          </svg>
+                        </div>
+                      )}
                     </div>
-                    <p className="text-xs text-primary-600">{subject.sessions} session(s) available</p>
-                  </div>
-                ))}
-              </div>
+                    {subject.description && (
+                      <p className="text-xs text-neutral-500">{subject.description}</p>
+                    )}
+                  </button>
+                );
+              })}
             </div>
           )}
-
-          {/* Optional Subjects */}
-          <div className="grid grid-cols-4 gap-3">
-            {filteredSubjects.filter((s) => !s.compulsory).map((subject) => {
-              const isSelected = config.subjects.includes(subject.name);
-              const isMaxed = !isSelected && selectedCount >= limit;
-              return (
-                <button
-                  key={subject.name}
-                  onClick={() => toggleSubject(subject.name)}
-                  disabled={isMaxed}
-                  className={`p-4 rounded-2xl border-2 text-left transition-all ${
-                    isSelected ? 'border-primary-500 bg-primary-50'
-                      : isMaxed ? 'border-neutral-100 bg-neutral-50 opacity-50 cursor-not-allowed'
-                      : 'border-neutral-200 bg-white hover:border-neutral-300'
-                  }`}
-                >
-                  <div className="flex items-center justify-between mb-1">
-                    <h3 className="font-medium text-sm text-neutral-900">{subject.name}</h3>
-                    {isSelected && (
-                      <div className="w-5 h-5 bg-primary-500 rounded-full flex items-center justify-center">
-                        <svg className="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20">
-                          <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                        </svg>
-                      </div>
-                    )}
-                  </div>
-                  <p className="text-xs text-neutral-500">{subject.sessions} session(s) available</p>
-                </button>
-              );
-            })}
-          </div>
         </div>
 
         {/* Summary + Continue */}
         <div className="bg-white rounded-2xl p-6 shadow-sm flex items-center justify-between">
           <div>
             <p className="text-neutral-600">
-              <span className="font-semibold text-neutral-900">{examTypeMeta[config.examType].name}</span>
+              <span className="font-semibold text-neutral-900">{currentExam?.name || config.examType}</span>
               {' • '}
               <span className="font-semibold text-neutral-900">{selectedCount}</span> subjects selected
             </p>
@@ -654,7 +692,7 @@ export default function PracticePage() {
     );
   }
 
-  // ─── Exam Type Selection (Step 1) ─────────────────────────────────────────
+  // ─── Exam Type Selection (Step 1) ─────────────────────────────────────
   return (
     <div className="p-8">
       <div className="mb-8">
@@ -663,20 +701,29 @@ export default function PracticePage() {
       </div>
 
       <div className="grid grid-cols-3 gap-4">
-        {(Object.keys(examTypeMeta) as ExamType[]).map((id) => {
-          const exam = examTypeMeta[id];
-          return (
+        {examsLoading ? (
+          Array.from({ length: 6 }).map((_, i) => (
+            <ExamCardSkeleton key={i} />
+          ))
+        ) : (
+          exams.map((exam) => (
             <button
-              key={id}
-              onClick={() => { setConfig({ ...config, examType: id, subjects: [] }); setStep('subjects'); }}
-              className={`p-6 rounded-2xl border-2 text-left transition-all hover:border-neutral-300 bg-white hover:shadow-md`}
+              key={exam.id}
+              onClick={() => handleSelectExam(exam)}
+              className="p-6 rounded-2xl border-2 text-left transition-all hover:border-neutral-300 bg-white hover:shadow-md"
             >
-              <div className={`w-10 h-10 ${exam.color} rounded-xl flex items-center justify-center mb-3`}><ExamIcon type={id} className="w-5 h-5 text-white" /></div>
+              <div className="w-10 h-10 bg-primary-500 rounded-xl flex items-center justify-center mb-3">
+                {exam.icon_url ? (
+                  <img src={exam.icon_url} alt="" className="w-5 h-5 object-contain" />
+                ) : (
+                  <DefaultExamIcon className="w-5 h-5 text-white" />
+                )}
+              </div>
               <h3 className="font-semibold text-neutral-900 text-lg">{exam.name}</h3>
-              <p className="text-sm text-neutral-500 mt-1">{exam.description}</p>
+              <p className="text-sm text-neutral-500 mt-1">{exam.description || `${exam.subject_count || 0} subjects • ${exam.question_count || 0} questions`}</p>
             </button>
-          );
-        })}
+          ))
+        )}
       </div>
     </div>
   );
