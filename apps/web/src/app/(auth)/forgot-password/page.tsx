@@ -130,13 +130,14 @@ export default function ForgotPasswordPage() {
             <label htmlFor="email" className="block text-sm font-medium text-neutral-700 mb-2">
               Email address
             </label>
-            <input
-              type="email"
-              id="email"
-              {...register('email')}
-              className={`input ${errors.email ? 'border-error-500 focus:ring-error-500' : ''}`}
-              placeholder="you@example.com"
-            />
+                <input
+                  type="email"
+                  id="email"
+                  {...register('email')}
+                  disabled={isLoading}
+                  className={`input ${errors.email ? 'border-error-500 focus:ring-error-500' : ''} ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
+                  placeholder="you@example.com"
+                />
             {errors.email && (
               <p className="mt-1.5 text-sm text-red-500 flex items-center gap-1">
                 <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20">

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Suspense } from 'react';
@@ -10,12 +10,47 @@ import { toast } from 'sonner';
 import { useAuthStore } from '@/stores/auth';
 import { loginSchema, type LoginInput } from '@/lib/validations';
 
+function getDeviceType(): string {
+  if (typeof window === 'undefined') return 'desktop';
+  const ua = navigator.userAgent;
+  if (/Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(ua)) {
+    if (/iPad|Tablet/i.test(ua)) return 'tablet';
+    return 'mobile';
+  }
+  return 'desktop';
+}
+
+function getDeviceInfo(): string {
+  const ua = navigator.userAgent;
+  const device = getDeviceType();
+  
+  let os = 'Unknown OS';
+  if (ua.includes('Win')) os = 'Windows';
+  else if (ua.includes('Mac')) os = 'macOS';
+  else if (ua.includes('Linux')) os = 'Linux';
+  else if (ua.includes('Android')) os = 'Android';
+  else if (ua.includes('iOS') || ua.includes('iPhone') || ua.includes('iPad')) os = 'iOS';
+
+  let browser = 'Unknown Browser';
+  if (ua.includes('Chrome') && !ua.includes('Edg')) browser = 'Chrome';
+  else if (ua.includes('Safari') && !ua.includes('Chrome')) browser = 'Safari';
+  else if (ua.includes('Firefox')) browser = 'Firefox';
+  else if (ua.includes('Edg')) browser = 'Edge';
+
+  return `${browser} on ${os} (${device})`;
+}
+
 function LoginForm() {
   const [showPassword, setShowPassword] = useState(false);
+  const [deviceInfo, setDeviceInfo] = useState('');
   const router = useRouter();
   const searchParams = useSearchParams();
   const redirect = searchParams.get('redirect') || '/dashboard';
   const { login, isLoading } = useAuthStore();
+
+  useEffect(() => {
+    setDeviceInfo(getDeviceInfo());
+  }, []);
 
   const {
     register,
@@ -30,12 +65,12 @@ function LoginForm() {
     const loadingToast = toast.loading('Signing you in...');
 
     try {
-      const success = await login(data.email, data.password);
+      const success = await login(data.email, data.password, deviceInfo);
       toast.dismiss(loadingToast);
 
       if (success) {
         toast.success('Welcome back!', {
-          description: 'Redirecting to your dashboard...',
+          description: `Signed in from ${getDeviceType()}`,
         });
         setTimeout(() => router.push(redirect), 1000);
       } else {
@@ -112,7 +147,8 @@ function LoginForm() {
                   type="email"
                   id="email"
                   {...register('email')}
-                  className={`input ${errors.email ? 'border-error-500 focus:ring-error-500' : ''}`}
+                  disabled={isLoading}
+                  className={`input ${errors.email ? 'border-error-500 focus:ring-error-500' : ''} ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
                   placeholder="you@example.com"
                 />
                 {errors.email && (
@@ -134,13 +170,15 @@ function LoginForm() {
                     type={showPassword ? 'text' : 'password'}
                     id="password"
                     {...register('password')}
-                    className={`input pr-12 ${errors.password ? 'border-error-500 focus:ring-error-500' : ''}`}
+                    disabled={isLoading}
+                    className={`input pr-12 ${errors.password ? 'border-error-500 focus:ring-error-500' : ''} ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
                     placeholder="Enter your password"
                   />
                   <button
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-neutral-400 hover:text-neutral-600"
+                    disabled={isLoading}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-neutral-400 hover:text-neutral-600 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     {showPassword ? (
                       <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -168,7 +206,8 @@ function LoginForm() {
                 <label className="flex items-center gap-2 cursor-pointer">
                   <input
                     type="checkbox"
-                    className="w-4 h-4 rounded border-neutral-300 text-primary-500 focus:ring-primary-500"
+                    disabled={isLoading}
+                    className="w-4 h-4 rounded border-neutral-300 text-primary-500 focus:ring-primary-500 disabled:opacity-50"
                   />
                   <span className="text-sm text-neutral-600">Remember me</span>
                 </label>
@@ -192,6 +231,16 @@ function LoginForm() {
                 )}
               </button>
             </form>
+
+            {/* Device indicator */}
+            {deviceInfo && (
+              <div className="mt-4 flex items-center justify-center gap-2 text-xs text-neutral-400">
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                </svg>
+                Signing in from {deviceInfo}
+              </div>
+            )}
           </div>
 
           <p className="text-center mt-6 text-neutral-600">

@@ -180,13 +180,14 @@ function ResetPasswordForm() {
               New password
             </label>
             <div className="relative">
-              <input
-                type={showPassword ? 'text' : 'password'}
-                id="password"
-                {...register('password')}
-                className={`input pr-12 ${errors.password ? 'border-error-500 focus:ring-error-500' : ''}`}
-                placeholder="Create a new password"
-              />
+                  <input
+                    type={showPassword ? 'text' : 'password'}
+                    id="password"
+                    {...register('password')}
+                    disabled={isLoading}
+                    className={`input pr-12 ${errors.password ? 'border-error-500 focus:ring-error-500' : ''} ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
+                    placeholder="Create a new password"
+                  />
               <button
                 type="button"
                 onClick={() => setShowPassword(!showPassword)}
@@ -219,13 +220,14 @@ function ResetPasswordForm() {
               Confirm new password
             </label>
             <div className="relative">
-              <input
-                type={showConfirmPassword ? 'text' : 'password'}
-                id="confirmPassword"
-                {...register('confirmPassword')}
-                className={`input pr-12 ${errors.confirmPassword ? 'border-error-500 focus:ring-error-500' : ''}`}
-                placeholder="Confirm your new password"
-              />
+                  <input
+                    type={showConfirmPassword ? 'text' : 'password'}
+                    id="confirmPassword"
+                    {...register('confirmPassword')}
+                    disabled={isLoading}
+                    className={`input pr-12 ${errors.confirmPassword ? 'border-error-500 focus:ring-error-500' : ''} ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
+                    placeholder="Confirm your new password"
+                  />
               <button
                 type="button"
                 onClick={() => setShowConfirmPassword(!showConfirmPassword)}

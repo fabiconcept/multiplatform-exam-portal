@@ -84,6 +84,9 @@ pub async fn login(
         Ok(Some(user)) => {
             if verify(&body.password, &user.password_hash).unwrap_or(false) {
                 let token = create_token(&user.id, &data.config.jwt_secret, data.config.jwt_expires_in);
+                if let Some(ref device_info) = body.device_info {
+                    log::info!("Login from user {} - Device: {}", user.email, device_info);
+                }
                 HttpResponse::Ok().json(AuthResponse {
                     token,
                     user: UserResponse::from(user),

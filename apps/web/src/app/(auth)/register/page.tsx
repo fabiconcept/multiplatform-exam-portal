@@ -52,6 +52,9 @@ export default function RegisterPage() {
     }
   };
 
+  const inputClass = (hasError: boolean) =>
+    `input ${hasError ? 'border-error-500 focus:ring-error-500' : ''} ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`;
+
   return (
     <div className="w-full max-w-5xl mx-auto">
       <div className="grid lg:grid-cols-2 gap-8 items-center">
@@ -116,7 +119,8 @@ export default function RegisterPage() {
                   type="text"
                   id="name"
                   {...register('name')}
-                  className={`input ${errors.name ? 'border-error-500 focus:ring-error-500' : ''}`}
+                  disabled={isLoading}
+                  className={inputClass(!!errors.name)}
                   placeholder="Enter your full name"
                 />
                 {errors.name && (
@@ -137,7 +141,8 @@ export default function RegisterPage() {
                   type="email"
                   id="email"
                   {...register('email')}
-                  className={`input ${errors.email ? 'border-error-500 focus:ring-error-500' : ''}`}
+                  disabled={isLoading}
+                  className={inputClass(!!errors.email)}
                   placeholder="you@example.com"
                 />
                 {errors.email && (
@@ -157,7 +162,8 @@ export default function RegisterPage() {
                 <select
                   id="target_exam"
                   {...register('target_exam')}
-                  className="input"
+                  disabled={isLoading}
+                  className={`${inputClass(false)} ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
                 >
                   <option value="">Select your exam (optional)</option>
                   {exams.map((exam) => (
@@ -175,13 +181,15 @@ export default function RegisterPage() {
                     type={showPassword ? 'text' : 'password'}
                     id="password"
                     {...register('password')}
-                    className={`input pr-12 ${errors.password ? 'border-error-500 focus:ring-error-500' : ''}`}
+                    disabled={isLoading}
+                    className={`input pr-12 ${errors.password ? 'border-error-500 focus:ring-error-500' : ''} ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
                     placeholder="Create a password"
                   />
                   <button
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-neutral-400 hover:text-neutral-600"
+                    disabled={isLoading}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-neutral-400 hover:text-neutral-600 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     {showPassword ? (
                       <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -214,13 +222,15 @@ export default function RegisterPage() {
                     type={showConfirmPassword ? 'text' : 'password'}
                     id="confirmPassword"
                     {...register('confirmPassword')}
-                    className={`input pr-12 ${errors.confirmPassword ? 'border-error-500 focus:ring-error-500' : ''}`}
+                    disabled={isLoading}
+                    className={`input pr-12 ${errors.confirmPassword ? 'border-error-500 focus:ring-error-500' : ''} ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
                     placeholder="Confirm your password"
                   />
                   <button
                     type="button"
                     onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-neutral-400 hover:text-neutral-600"
+                    disabled={isLoading}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-neutral-400 hover:text-neutral-600 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     {showConfirmPassword ? (
                       <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -248,7 +258,8 @@ export default function RegisterPage() {
                 <input
                   type="checkbox"
                   id="terms"
-                  className="mt-1 w-4 h-4 rounded border-neutral-300 text-primary-500 focus:ring-primary-500"
+                  disabled={isLoading}
+                  className="mt-1 w-4 h-4 rounded border-neutral-300 text-primary-500 focus:ring-primary-500 disabled:opacity-50"
                   required
                 />
                 <label htmlFor="terms" className="text-sm text-neutral-600">

@@ -8,7 +8,7 @@ interface AuthState {
   isLoading: boolean;
   error: string | null;
 
-  login: (email: string, password: string) => Promise<boolean>;
+  login: (email: string, password: string, deviceInfo?: string) => Promise<boolean>;
   register: (data: { name: string; email: string; password: string; phone?: string; school?: string; target_exam?: string }) => Promise<boolean>;
   logout: () => void;
   loadUser: () => Promise<void>;
@@ -23,10 +23,10 @@ export const useAuthStore = create<AuthState>()(
       isLoading: false,
       error: null,
 
-      login: async (email, password) => {
+      login: async (email, password, deviceInfo) => {
         set({ isLoading: true, error: null });
         try {
-          const { token, user } = await authApi.login({ email, password });
+          const { token, user } = await authApi.login({ email, password, device_info: deviceInfo });
           set({ user, token, isLoading: false });
           return true;
         } catch (err) {

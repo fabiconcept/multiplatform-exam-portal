@@ -48,7 +48,7 @@ export const authApi = {
   register: (body: { name: string; email: string; password: string; phone?: string; school?: string; target_exam?: string }) =>
     api<{ token: string; user: User }>('/auth/register', { method: 'POST', body }),
 
-  login: (body: { email: string; password: string }) =>
+  login: (body: { email: string; password: string; device_info?: string }) =>
     api<{ token: string; user: User }>('/auth/login', { method: 'POST', body }),
 
   me: (token: string) =>

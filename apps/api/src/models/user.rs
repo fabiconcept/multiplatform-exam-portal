@@ -32,6 +32,7 @@ pub struct RegisterRequest {
 pub struct LoginRequest {
     pub email: String,
     pub password: String,
+    pub device_info: Option<String>,
 }
 
 #[derive(Debug, Serialize)]
