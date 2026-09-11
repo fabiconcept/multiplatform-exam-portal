@@ -1,7 +1,8 @@
 'use client';
 
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
+import { useAuthStore } from '@/stores/auth';
 
 const navItems = [
   {
@@ -66,6 +67,17 @@ const bottomItems = [
 
 export default function Sidebar() {
   const pathname = usePathname();
+  const router = useRouter();
+  const { user, logout } = useAuthStore();
+
+  const handleLogout = () => {
+    logout();
+    router.push('/login');
+  };
+
+  const userInitials = user?.name
+    ? user.name.split(' ').map((n) => n[0]).join('').toUpperCase().slice(0, 2)
+    : 'U';
 
   return (
     <aside className="fixed left-0 top-0 bottom-0 w-64 bg-neutral-900 text-white flex flex-col z-40">
@@ -82,12 +94,12 @@ export default function Sidebar() {
       {/* User Info */}
       <div className="p-4 mx-4 mt-4 bg-neutral-800 rounded-xl">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 bg-accent-500 rounded-full flex items-center justify-center text-white font-semibold">
-            A
+          <div className="w-10 h-10 bg-accent-500 rounded-full flex items-center justify-center text-white font-semibold text-sm">
+            {userInitials}
           </div>
           <div className="flex-1 min-w-0">
-            <p className="font-medium truncate">Adebayo Johnson</p>
-            <p className="text-xs text-neutral-400 truncate">JAMB/UTME</p>
+            <p className="font-medium truncate">{user?.name || 'Student'}</p>
+            <p className="text-xs text-neutral-400 truncate">{user?.target_exam || 'ExamScholars'}</p>
           </div>
         </div>
       </div>
@@ -125,15 +137,15 @@ export default function Sidebar() {
             {item.label}
           </Link>
         ))}
-        <Link
-          href="/login"
-          className="flex items-center gap-3 px-4 py-3 rounded-xl text-neutral-400 hover:bg-red-500/10 hover:text-red-400 transition-all"
+        <button
+          onClick={handleLogout}
+          className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-neutral-400 hover:bg-red-500/10 hover:text-red-400 transition-all"
         >
           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
           </svg>
           Logout
-        </Link>
+        </button>
       </div>
     </aside>
   );
