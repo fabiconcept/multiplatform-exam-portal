@@ -7,7 +7,7 @@ import { Suspense } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { toast } from 'sonner';
+import { showToast } from '@/lib/toast';
 import { authApi } from '@/lib/api';
 
 const resetPasswordSchema = z.object({
@@ -53,28 +53,22 @@ function ResetPasswordForm() {
 
   const onSubmit = async (data: ResetPasswordInput) => {
     if (!token) {
-      toast.error('Invalid reset link', {
-        description: 'Please request a new password reset link.',
-      });
+      showToast.error('Invalid reset link', 'Please request a new password reset link.');
       return;
     }
 
     setIsLoading(true);
-    const loadingToast = toast.loading('Resetting your password...');
+    const loadingToast = showToast.loading('Resetting your password...');
 
     try {
       await authApi.resetPassword(token, data.password);
-      toast.dismiss(loadingToast);
+      showToast.dismiss(loadingToast);
       setIsSuccess(true);
-      toast.success('Password reset successful', {
-        description: 'Your password has been updated. Redirecting to login...',
-      });
+      showToast.success('Password reset successful', 'Your password has been updated. Redirecting to login...');
       setTimeout(() => router.push('/login'), 2000);
     } catch {
-      toast.dismiss(loadingToast);
-      toast.error('Reset failed', {
-        description: 'The reset link may have expired. Please request a new one.',
-      });
+      showToast.dismiss(loadingToast);
+      showToast.error('Reset failed', 'The reset link may have expired. Please request a new one.');
     } finally {
       setIsLoading(false);
     }

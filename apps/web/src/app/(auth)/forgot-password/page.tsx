@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { toast } from 'sonner';
+import { showToast } from '@/lib/toast';
 import { authApi } from '@/lib/api';
 
 const forgotPasswordSchema = z.object({
@@ -30,23 +30,19 @@ export default function ForgotPasswordPage() {
 
   const onSubmit = async (data: ForgotPasswordInput) => {
     setIsLoading(true);
-    const loadingToast = toast.loading('Sending reset link...');
+    const loadingToast = showToast.loading('Sending reset link...');
 
     try {
       const response = await authApi.forgotPassword(data.email);
-      toast.dismiss(loadingToast);
+      showToast.dismiss(loadingToast);
       setSubmittedEmail(data.email);
       setIsSubmitted(true);
-      toast.success('Check your email', {
-        description: response.message,
-      });
+      showToast.success('Check your email', response.message);
     } catch {
-      toast.dismiss(loadingToast);
+      showToast.dismiss(loadingToast);
       setIsSubmitted(true);
       setSubmittedEmail(data.email);
-      toast.info('Check your email', {
-        description: 'If an account exists with this email, you will receive a password reset link.',
-      });
+      showToast.info('Check your email', 'If an account exists with this email, you will receive a password reset link.');
     } finally {
       setIsLoading(false);
     }

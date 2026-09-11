@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { toast } from 'sonner';
+import { showToast } from '@/lib/toast';
 import { useAuthStore } from '@/stores/auth';
 
 const navItems = [
@@ -46,6 +46,15 @@ const navItems = [
 
 const bottomItems = [
   {
+    label: 'Profile',
+    href: '/dashboard/profile',
+    icon: (
+      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+      </svg>
+    ),
+  },
+  {
     label: 'Settings',
     href: '/dashboard/settings',
     icon: (
@@ -73,9 +82,7 @@ export default function Sidebar() {
 
   const handleLogout = () => {
     logout();
-    toast.success('Logged out', {
-      description: 'You have been signed out successfully.',
-    });
+    showToast.success('Logged out', 'You have been signed out successfully.');
     router.push('/login');
   };
 
@@ -96,7 +103,7 @@ export default function Sidebar() {
       </div>
 
       {/* User Info */}
-      <div className="p-4 mx-4 mt-4 bg-neutral-800 rounded-xl">
+      <Link href="/dashboard/profile" className="p-4 mx-4 mt-4 bg-neutral-800 rounded-xl hover:bg-neutral-700 transition-colors">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 bg-accent-500 rounded-full flex items-center justify-center text-white font-semibold text-sm">
             {userInitials}
@@ -106,7 +113,7 @@ export default function Sidebar() {
             <p className="text-xs text-neutral-400 truncate">{user?.target_exam || 'ExamScholars'}</p>
           </div>
         </div>
-      </div>
+      </Link>
 
       {/* Main Nav */}
       <nav className="flex-1 p-4 space-y-1">
@@ -131,16 +138,23 @@ export default function Sidebar() {
 
       {/* Bottom Nav */}
       <div className="p-4 border-t border-neutral-800 space-y-1">
-        {bottomItems.map((item) => (
-          <Link
-            key={item.href}
-            href={item.href}
-            className="flex items-center gap-3 px-4 py-3 rounded-xl text-neutral-400 hover:bg-neutral-800 hover:text-white transition-all"
-          >
-            {item.icon}
-            {item.label}
-          </Link>
-        ))}
+        {bottomItems.map((item) => {
+          const isActive = pathname === item.href;
+          return (
+            <Link
+              key={item.href}
+              href={item.href}
+              className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${
+                isActive
+                  ? 'bg-primary-500 text-neutral-900 font-semibold'
+                  : 'text-neutral-400 hover:bg-neutral-800 hover:text-white'
+              }`}
+            >
+              {item.icon}
+              {item.label}
+            </Link>
+          );
+        })}
         <button
           onClick={handleLogout}
           className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-neutral-400 hover:bg-red-500/10 hover:text-red-400 transition-all"

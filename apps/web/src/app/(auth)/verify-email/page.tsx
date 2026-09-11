@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { Suspense } from 'react';
-import { toast } from 'sonner';
+import { showToast } from '@/lib/toast';
 import { authApi } from '@/lib/api';
 
 function VerifyEmailForm() {
@@ -25,9 +25,7 @@ function VerifyEmailForm() {
         const response = await authApi.verifyEmail(token);
         setStatus('success');
         setMessage(response.message);
-        toast.success('Email verified!', {
-          description: 'Your email has been verified successfully.',
-        });
+        showToast.success('Email verified!', 'Your email has been verified successfully.');
       } catch {
         setStatus('expired');
         setMessage('This verification link has expired or is invalid. Please request a new one.');

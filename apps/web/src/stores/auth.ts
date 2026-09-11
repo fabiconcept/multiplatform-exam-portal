@@ -20,7 +20,7 @@ export const useAuthStore = create<AuthState>()(
     (set, get) => ({
       user: null,
       token: null,
-      isLoading: false,
+      isLoading: true,
       error: null,
 
       login: async (email, password, deviceInfo) => {
@@ -61,7 +61,7 @@ export const useAuthStore = create<AuthState>()(
         try {
           const user = await authApi.me(token);
           set({ user, isLoading: false });
-        } catch {
+        } catch (e) {
           set({ user: null, token: null, isLoading: false });
         }
       },

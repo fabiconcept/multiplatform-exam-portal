@@ -4,7 +4,7 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { Suspense } from 'react';
-import { toast } from 'sonner';
+import { showToast } from '@/lib/toast';
 import { authApi } from '@/lib/api';
 
 function CheckEmailContent() {
@@ -14,26 +14,20 @@ function CheckEmailContent() {
 
   const handleResend = async () => {
     if (!email) {
-      toast.error('No email address', {
-        description: 'Please go back to register.',
-      });
+      showToast.error('No email address', 'Please go back to register.');
       return;
     }
 
     setIsResending(true);
-    const loadingToast = toast.loading('Sending verification email...');
+    const loadingToast = showToast.loading('Sending verification email...');
 
     try {
       await authApi.sendVerification(email);
-      toast.dismiss(loadingToast);
-      toast.success('Email sent!', {
-        description: 'A new verification email has been sent.',
-      });
+      showToast.dismiss(loadingToast);
+      showToast.success('Email sent!', 'A new verification email has been sent.');
     } catch {
-      toast.dismiss(loadingToast);
-      toast.error('Failed to send', {
-        description: 'Please try again later.',
-      });
+      showToast.dismiss(loadingToast);
+      showToast.error('Failed to send', 'Please try again later.');
     } finally {
       setIsResending(false);
     }

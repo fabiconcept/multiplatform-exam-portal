@@ -3,11 +3,12 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useForm } from 'react-hook-form';
+import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { toast } from 'sonner';
+import { showToast } from '@/lib/toast';
 import { useAuthStore } from '@/stores/auth';
 import { registerSchema, type RegisterInput } from '@/lib/validations';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 const exams = ['JAMB/UTME', 'WAEC/SSCE', 'Post-UTME', 'BECE', 'NCEE'];
 
@@ -20,6 +21,7 @@ export default function RegisterPage() {
   const {
     register,
     handleSubmit,
+    control,
     formState: { errors },
   } = useForm<RegisterInput>({
     resolver: zodResolver(registerSchema),
@@ -28,27 +30,21 @@ export default function RegisterPage() {
 
   const onSubmit = async (data: RegisterInput) => {
     const { confirmPassword, ...submitData } = data;
-    const loadingToast = toast.loading('Creating your account...');
+    const loadingToast = showToast.loading('Creating your account...');
 
     try {
       const success = await registerUser(submitData);
-      toast.dismiss(loadingToast);
+      showToast.dismiss(loadingToast);
 
       if (success) {
-        toast.success('Account created!', {
-          description: 'Please check your email to verify your account.',
-        });
+        showToast.success('Account created!', 'Please check your email to verify your account.');
         setTimeout(() => router.push(`/check-email?email=${encodeURIComponent(data.email)}`), 1000);
       } else {
-        toast.error('Registration failed', {
-          description: 'This email may already be in use. Please try again.',
-        });
+        showToast.error('Registration failed', 'This email may already be in use. Please try again.');
       }
     } catch {
-      toast.dismiss(loadingToast);
-      toast.error('Something went wrong', {
-        description: 'Please check your connection and try again.',
-      });
+      showToast.dismiss(loadingToast);
+      showToast.error('Something went wrong', 'Please check your connection and try again.');
     }
   };
 
@@ -159,17 +155,28 @@ export default function RegisterPage() {
                 <label htmlFor="target_exam" className="block text-sm font-medium text-neutral-700 mb-2">
                   Preparing for
                 </label>
-                <select
-                  id="target_exam"
-                  {...register('target_exam')}
-                  disabled={isLoading}
-                  className={`${inputClass(false)} ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
-                >
-                  <option value="">Select your exam (optional)</option>
-                  {exams.map((exam) => (
-                    <option key={exam} value={exam}>{exam}</option>
-                  ))}
-                </select>
+                <Controller
+                  name="target_exam"
+                  control={control}
+                  render={({ field }) => (
+                    <Select
+                      value={field.value || ''}
+                      onValueChange={(val) => field.onChange(val || '')}
+                      disabled={isLoading}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select your exam (optional)" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {exams.map((exam) => (
+                          <SelectItem key={exam} value={exam}>
+                            {exam}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
+                />
               </div>
 
               <div>

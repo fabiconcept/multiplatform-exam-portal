@@ -6,7 +6,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { Suspense } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { toast } from 'sonner';
+import { showToast } from '@/lib/toast';
 import { useAuthStore } from '@/stores/auth';
 import { loginSchema, type LoginInput } from '@/lib/validations';
 
@@ -46,7 +46,7 @@ function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const redirect = searchParams.get('redirect') || '/dashboard';
-  const { login, isLoading } = useAuthStore();
+  const { login, isLoading, error: authError } = useAuthStore();
 
   useEffect(() => {
     setDeviceInfo(getDeviceInfo());
@@ -62,27 +62,22 @@ function LoginForm() {
   });
 
   const onSubmit = async (data: LoginInput) => {
-    const loadingToast = toast.loading('Signing you in...');
+    const loadingToast = showToast.loading('Signing you in...');
 
     try {
       const success = await login(data.email, data.password, deviceInfo);
-      toast.dismiss(loadingToast);
+      showToast.dismiss(loadingToast);
 
       if (success) {
-        toast.success('Welcome back!', {
-          description: `Signed in from ${getDeviceType()}`,
-        });
+        showToast.success('Welcome back!', `Signed in from ${getDeviceType()}`);
         setTimeout(() => router.push(redirect), 1000);
       } else {
-        toast.error('Login failed', {
-          description: 'Invalid email or password. Please try again.',
-        });
+        const message = authError || 'Invalid email or password. Please try again.';
+        showToast.error('Login failed', message);
       }
     } catch {
-      toast.dismiss(loadingToast);
-      toast.error('Something went wrong', {
-        description: 'Please check your connection and try again.',
-      });
+      showToast.dismiss(loadingToast);
+      showToast.error('Something went wrong', 'Please check your connection and try again.');
     }
   };
 

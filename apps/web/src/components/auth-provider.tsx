@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, createContext, useContext, type ReactNode } from 'react';
+import { useEffect, useState, createContext, useContext, type ReactNode } from 'react';
 import { useAuthStore } from '@/stores/auth';
 
 interface AuthContextType {
@@ -21,18 +21,27 @@ export function useAuth() {
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const { user, token, isLoading, loadUser } = useAuthStore();
+  const [hydrated, setHydrated] = useState(false);
 
   useEffect(() => {
+    setHydrated(true);
+  }, []);
+
+  useEffect(() => {
+    if (!hydrated) return;
+
     if (token && !user) {
       loadUser();
+    } else if (!token && isLoading) {
+      useAuthStore.setState({ isLoading: false });
     }
-  }, [token, user, loadUser]);
+  }, [hydrated, token, user, loadUser, isLoading]);
 
   return (
     <AuthContext.Provider
       value={{
         isAuthenticated: !!token && !!user,
-        isLoading,
+        isLoading: isLoading || !hydrated,
         user,
       }}
     >
