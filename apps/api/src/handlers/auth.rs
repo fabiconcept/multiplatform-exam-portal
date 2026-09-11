@@ -5,7 +5,7 @@ use uuid::Uuid;
 use chrono::Utc;
 
 use crate::AppState;
-use crate::models::{RegisterRequest, LoginRequest, AuthResponse, UserResponse, User, Claims};
+use crate::models::{RegisterRequest, LoginRequest, AuthResponse, UserResponse, User, Claims, ForgotPasswordRequest, ResetPasswordRequest, PasswordReset};
 
 pub async fn register(
     data: web::Data<AppState>,
@@ -156,4 +156,100 @@ fn extract_user_id(req: &HttpRequest, secret: &str) -> Option<String> {
     ).ok()?;
 
     Some(token_data.claims.sub)
+}
+
+pub async fn forgot_password(
+    data: web::Data<AppState>,
+    body: web::Json<ForgotPasswordRequest>,
+) -> HttpResponse {
+    let user = sqlx::query_as::<_, User>("SELECT * FROM users WHERE email = ?")
+        .bind(&body.email)
+        .fetch_optional(&data.db)
+        .await;
+
+    match user {
+        Ok(Some(_user)) => {
+            let token = Uuid::new_v4().to_string();
+            let id = Uuid::new_v4().to_string();
+            let now = Utc::now().naive_utc();
+            let expires_at = Utc::now().naive_utc() + chrono::Duration::hours(1);
+
+            let _ = sqlx::query(
+                "INSERT INTO password_resets (id, user_id, token, expires_at, used, created_at) VALUES (?, ?, ?, ?, 0, ?)"
+            )
+            .bind(&id)
+            .bind(&_user.id)
+            .bind(&token)
+            .bind(expires_at)
+            .bind(now)
+            .execute(&data.db)
+            .await;
+
+            log::info!("Password reset token for {}: {}", body.email, token);
+
+            HttpResponse::Ok().json(serde_json::json!({
+                "message": "If an account exists with this email, you will receive a password reset link.",
+                "token": token
+            }))
+        }
+        Ok(None) => HttpResponse::Ok().json(serde_json::json!({
+            "message": "If an account exists with this email, you will receive a password reset link."
+        })),
+        Err(e) => {
+            log::error!("Forgot password error: {}", e);
+            HttpResponse::InternalServerError().json(serde_json::json!({
+                "error": "Internal server error"
+            }))
+        }
+    }
+}
+
+pub async fn reset_password(
+    data: web::Data<AppState>,
+    body: web::Json<ResetPasswordRequest>,
+) -> HttpResponse {
+    let reset = sqlx::query_as::<_, PasswordReset>(
+        "SELECT * FROM password_resets WHERE token = ? AND used = 0 AND expires_at > datetime('now')"
+    )
+    .bind(&body.token)
+    .fetch_optional(&data.db)
+    .await;
+
+    match reset {
+        Ok(Some(reset_record)) => {
+            let password_hash = match hash(&body.password, DEFAULT_COST) {
+                Ok(h) => h,
+                Err(_) => return HttpResponse::InternalServerError().json(serde_json::json!({
+                    "error": "Failed to hash password"
+                })),
+            };
+
+            let now = Utc::now().naive_utc();
+
+            let _ = sqlx::query("UPDATE users SET password_hash = ?, updated_at = ? WHERE id = ?")
+                .bind(&password_hash)
+                .bind(now)
+                .bind(&reset_record.user_id)
+                .execute(&data.db)
+                .await;
+
+            let _ = sqlx::query("UPDATE password_resets SET used = 1 WHERE id = ?")
+                .bind(&reset_record.id)
+                .execute(&data.db)
+                .await;
+
+            HttpResponse::Ok().json(serde_json::json!({
+                "message": "Password has been reset successfully"
+            }))
+        }
+        Ok(None) => HttpResponse::BadRequest().json(serde_json::json!({
+            "error": "Invalid or expired reset token"
+        })),
+        Err(e) => {
+            log::error!("Reset password error: {}", e);
+            HttpResponse::InternalServerError().json(serde_json::json!({
+                "error": "Internal server error"
+            }))
+        }
+    }
 }

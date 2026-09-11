@@ -72,3 +72,24 @@ pub struct Claims {
     pub sub: String,
     pub exp: usize,
 }
+
+#[derive(Debug, Deserialize)]
+pub struct ForgotPasswordRequest {
+    pub email: String,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct ResetPasswordRequest {
+    pub token: String,
+    pub password: String,
+}
+
+#[derive(Debug, Serialize, Deserialize, FromRow)]
+pub struct PasswordReset {
+    pub id: String,
+    pub user_id: String,
+    pub token: String,
+    pub expires_at: NaiveDateTime,
+    pub used: bool,
+    pub created_at: NaiveDateTime,
+}

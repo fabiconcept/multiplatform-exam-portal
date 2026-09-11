@@ -1,4 +1,5 @@
 use actix_web::{web, App, HttpServer, middleware::Logger};
+use actix_cors::Cors;
 use sqlx::SqlitePool;
 use std::env;
 
@@ -33,14 +34,28 @@ async fn main() -> std::io::Result<()> {
     log::info!("Starting server at http://127.0.0.1:8080");
 
     HttpServer::new(move || {
+        let cors = Cors::default()
+            .allowed_origin("http://localhost:3001")
+            .allowed_origin("http://127.0.0.1:3001")
+            .allowed_methods(vec!["GET", "POST", "PUT", "DELETE", "OPTIONS"])
+            .allowed_headers(vec![
+                actix_web::http::header::AUTHORIZATION,
+                actix_web::http::header::CONTENT_TYPE,
+                actix_web::http::header::ACCEPT,
+            ])
+            .max_age(3600);
+
         App::new()
             .app_data(data.clone())
+            .wrap(cors)
             .wrap(Logger::default())
             .service(
                 web::scope("/api/auth")
                     .route("/register", web::post().to(handlers::auth::register))
                     .route("/login", web::post().to(handlers::auth::login))
                     .route("/me", web::get().to(handlers::auth::me))
+                    .route("/forgot-password", web::post().to(handlers::auth::forgot_password))
+                    .route("/reset-password", web::post().to(handlers::auth::reset_password))
             )
     })
     .bind("127.0.0.1:8080")?
