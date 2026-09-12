@@ -3,9 +3,11 @@ use bcrypt::{hash, verify, DEFAULT_COST};
 use jsonwebtoken::{encode, decode, Header, Validation, EncodingKey, DecodingKey};
 use uuid::Uuid;
 use chrono::Utc;
+use sqlx::FromRow;
 
 use crate::AppState;
-use crate::models::{RegisterRequest, LoginRequest, AuthResponse, UserResponse, User, Claims, ForgotPasswordRequest, ResetPasswordRequest, PasswordReset, EmailVerification, VerifyEmailRequest, SendVerificationRequest, TrackUsageRequest, UsageStatusResponse, UpdateProfileRequest, UpdatePasswordRequest, UpdateSettingsRequest, UserSettings, ExamWithCounts, Subject, Topic};
+use crate::models::{RegisterRequest, LoginRequest, AuthResponse, UserResponse, User, Claims, ForgotPasswordRequest, ResetPasswordRequest, PasswordReset, EmailVerification, VerifyEmailRequest, SendVerificationRequest, TrackUsageRequest, UsageStatusResponse, UpdateProfileRequest, UpdatePasswordRequest, UpdateSettingsRequest, UserSettings, ExamWithCounts, Subject, Topic, ExamSession, CreateSessionRequest, SessionResponse, SessionQuestion, SubmitAnswerRequest, SubmitAllRequest, SessionResult, SubjectResult, DifficultyResult, ExamAnswer, Bookmark, CreateBookmarkRequest, BookmarkedQuestion, UserStats, ActivateRequest, ActivationResponse, ActivationKey};
+use crate::middleware::auth::require_active_user;
 
 pub async fn register(
     data: web::Data<AppState>,
@@ -102,6 +104,15 @@ pub async fn login(
 
     match user {
         Ok(Some(user)) => {
+            // Check if user is banned
+            if user.is_banned {
+                let reason = user.ban_reason.unwrap_or_else(|| "Your account has been banned. Please contact support.".to_string());
+                return HttpResponse::Forbidden().json(serde_json::json!({
+                    "error": "Account banned",
+                    "message": reason
+                }));
+            }
+
             if verify(&body.password, &user.password_hash).unwrap_or(false) {
                 let token = create_token(&user.id, &data.config.jwt_secret, data.config.jwt_expires_in);
                 if let Some(ref device_info) = body.device_info {
@@ -765,6 +776,13 @@ pub async fn get_settings(
         })),
     };
 
+    if let Err(e) = require_active_user(&data.db, &user_id).await {
+        return HttpResponse::Forbidden().json(serde_json::json!({
+            "error": "Account deactivated",
+            "message": "Your account has been deactivated."
+        }));
+    }
+
     let settings = sqlx::query_as::<_, UserSettings>(
         "SELECT * FROM user_settings WHERE user_id = ?"
     )
@@ -814,6 +832,13 @@ pub async fn update_settings(
         })),
     };
 
+    if let Err(e) = require_active_user(&data.db, &user_id).await {
+        return HttpResponse::Forbidden().json(serde_json::json!({
+            "error": "Account deactivated",
+            "message": "Your account has been deactivated."
+        }));
+    }
+
     let _ = sqlx::query(
         "INSERT INTO user_settings (user_id, notifications, email_updates, sound_effects, dark_mode, auto_save, show_explanations, timer_warning) VALUES (?, 1, 0, 1, 0, 1, 1, 1) ON CONFLICT(user_id) DO NOTHING"
     )
@@ -862,7 +887,7 @@ pub async fn update_settings(
 
 pub async fn list_public_exams(data: web::Data<AppState>) -> HttpResponse {
     let exams = sqlx::query_as::<_, ExamWithCounts>(
-        "SELECT e.id, e.name, e.slug, e.description, e.total_questions, e.time_limit_minutes, e.is_active, e.icon_url, e.created_at, (SELECT COUNT(*) FROM subjects WHERE exam_id = e.id AND is_active = 1) AS subject_count, (SELECT COUNT(*) FROM questions WHERE exam_type = e.slug AND is_active = 1) AS question_count FROM exams e WHERE e.is_active = 1 ORDER BY e.created_at DESC",
+        "SELECT e.id, e.name, e.slug, e.description, e.total_questions, e.time_limit_minutes, e.min_subjects, e.max_subjects, e.is_active, e.icon_url, e.created_at, (SELECT COUNT(*) FROM subjects WHERE exam_id = e.id AND is_active = 1) AS subject_count, (SELECT COUNT(*) FROM questions WHERE exam_type = e.slug AND is_active = 1) AS question_count FROM exams e WHERE e.is_active = 1 ORDER BY e.created_at DESC",
     )
     .fetch_all(&data.db)
     .await;
@@ -933,4 +958,959 @@ pub async fn list_public_subject_topics(
             }))
         }
     }
+}
+
+// ---------------------------------------------------------------------------
+// Helper: extract user ID from JWT
+// ---------------------------------------------------------------------------
+
+fn get_user_id(req: &HttpRequest) -> Option<String> {
+    let auth = req.headers().get("Authorization")?;
+    let val = auth.to_str().ok()?;
+    let token = val.strip_prefix("Bearer ")?;
+    let secret = std::env::var("JWT_SECRET").unwrap_or_else(|_| "exam-scholars-secret-key-change-in-production".into());
+    let token_data = jsonwebtoken::decode::<Claims>(
+        token,
+        &jsonwebtoken::DecodingKey::from_secret(secret.as_bytes()),
+        &jsonwebtoken::Validation::default(),
+    )
+    .ok()?;
+    Some(token_data.claims.sub)
+}
+
+// ---------------------------------------------------------------------------
+// Activation
+// ---------------------------------------------------------------------------
+
+pub async fn activate_account(
+    req: HttpRequest,
+    data: web::Data<AppState>,
+    body: web::Json<ActivateRequest>,
+) -> HttpResponse {
+    let user_id = match get_user_id(&req) {
+        Some(id) => id,
+        None => return HttpResponse::Unauthorized().json(serde_json::json!({"error": "Unauthorized"})),
+    };
+
+    let key_code = body.key_code.trim().to_uppercase();
+
+    // Find the activation key
+    let key = sqlx::query_as::<_, ActivationKey>(
+        "SELECT * FROM activation_keys WHERE key_code = ? AND is_active = 1",
+    )
+    .bind(&key_code)
+    .fetch_optional(&data.db)
+    .await;
+
+    match key {
+        Ok(Some(key)) => {
+            // Check if key is expired
+            if let Some(expires_at) = key.expires_at {
+                if expires_at < Utc::now().naive_utc() {
+                    return HttpResponse::BadRequest().json(serde_json::json!({
+                        "error": "Activation key has expired"
+                    }));
+                }
+            }
+
+            // Check if key has remaining uses
+            if key.used_count >= key.max_uses {
+                return HttpResponse::BadRequest().json(serde_json::json!({
+                    "error": "Activation key has no remaining uses"
+                }));
+            }
+
+            // Activate user
+            let now = Utc::now().naive_utc();
+            let result = sqlx::query(
+                "UPDATE users SET is_active = 1, updated_at = ? WHERE id = ?",
+            )
+            .bind(now)
+            .bind(&user_id)
+            .execute(&data.db)
+            .await;
+
+            match result {
+                Ok(_) => {
+                    // Increment used_count on the key
+                    let _ = sqlx::query(
+                        "UPDATE activation_keys SET used_count = used_count + 1 WHERE id = ?",
+                    )
+                    .bind(&key.id)
+                    .execute(&data.db)
+                    .await;
+
+                    // Fetch updated user
+                    if let Ok(updated_user) = sqlx::query_as::<_, User>(
+                        "SELECT * FROM users WHERE id = ?",
+                    )
+                    .bind(&user_id)
+                    .fetch_one(&data.db)
+                    .await
+                    {
+                        HttpResponse::Ok().json(serde_json::json!({
+                            "message": "Account activated successfully",
+                            "user": UserResponse::from(updated_user),
+                            "exam_type": key.exam_type,
+                            "activated_at": now.to_string(),
+                        }))
+                    } else {
+                        HttpResponse::Ok().json(serde_json::json!({
+                            "message": "Account activated successfully",
+                            "exam_type": key.exam_type,
+                            "activated_at": now.to_string(),
+                        }))
+                    }
+                }
+                Err(e) => {
+                    log::error!("Activate account error: {}", e);
+                    HttpResponse::InternalServerError().json(serde_json::json!({
+                        "error": "Failed to activate account"
+                    }))
+                }
+            }
+        }
+        Ok(None) => HttpResponse::BadRequest().json(serde_json::json!({
+            "error": "Invalid activation key"
+        })),
+        Err(e) => {
+            log::error!("Activate account lookup error: {}", e);
+            HttpResponse::InternalServerError().json(serde_json::json!({
+                "error": "Internal server error"
+            }))
+        }
+    }
+}
+
+pub async fn check_activation_status(
+    req: HttpRequest,
+    data: web::Data<AppState>,
+) -> HttpResponse {
+    let user_id = match get_user_id(&req) {
+        Some(id) => id,
+        None => return HttpResponse::Unauthorized().json(serde_json::json!({"error": "Unauthorized"})),
+    };
+
+    let user = sqlx::query_as::<_, User>(
+        "SELECT * FROM users WHERE id = ?",
+    )
+    .bind(&user_id)
+    .fetch_one(&data.db)
+    .await;
+
+    match user {
+        Ok(user) => HttpResponse::Ok().json(serde_json::json!({
+            "is_active": user.is_active,
+        })),
+        Err(e) => {
+            log::error!("Check activation status error: {}", e);
+            HttpResponse::InternalServerError().json(serde_json::json!({
+                "error": "Internal server error"
+            }))
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Exam Sessions
+// ---------------------------------------------------------------------------
+
+pub async fn create_exam_session(
+    req: HttpRequest,
+    data: web::Data<AppState>,
+    body: web::Json<CreateSessionRequest>,
+) -> HttpResponse {
+    let user_id = match get_user_id(&req) {
+        Some(id) => id,
+        None => return HttpResponse::Unauthorized().json(serde_json::json!({"error": "Unauthorized"})),
+    };
+
+    if let Err(e) = require_active_user(&data.db, &user_id).await {
+        return HttpResponse::Forbidden().json(serde_json::json!({
+            "error": "Account deactivated",
+            "message": "Your account has been deactivated. Please contact support or activate your account."
+        }));
+    }
+
+    let id = Uuid::new_v4().to_string();
+    let now = Utc::now().naive_utc();
+    let mode = body.mode.as_deref().unwrap_or("study");
+    let question_count = body.question_count.unwrap_or(30);
+    let duration = body.duration_minutes.unwrap_or(60);
+    let expires_at = now + chrono::Duration::minutes(duration as i64);
+    let subjects_json = serde_json::to_string(&body.subjects.as_ref().unwrap_or(&vec![])).unwrap_or_else(|_| "[]".into());
+
+    let result = sqlx::query(
+        "INSERT INTO exam_sessions (id, user_id, exam_type, mode, subjects, question_count, duration_minutes, status, started_at, expires_at) VALUES (?, ?, ?, ?, ?, ?, ?, 'in_progress', ?, ?)",
+    )
+    .bind(&id)
+    .bind(&user_id)
+    .bind(&body.exam_type)
+    .bind(mode)
+    .bind(&subjects_json)
+    .bind(question_count)
+    .bind(duration)
+    .bind(now)
+    .bind(expires_at)
+    .execute(&data.db)
+    .await;
+
+    match result {
+        Ok(_) => {
+            let session = sqlx::query_as::<_, ExamSession>("SELECT * FROM exam_sessions WHERE id = ?")
+                .bind(&id)
+                .fetch_one(&data.db)
+                .await
+                .unwrap();
+
+            HttpResponse::Created().json(session)
+        }
+        Err(e) => {
+            log::error!("Create exam session error: {}", e);
+            HttpResponse::InternalServerError().json(serde_json::json!({"error": "Failed to create session"}))
+        }
+    }
+}
+
+pub async fn get_exam_session(
+    req: HttpRequest,
+    data: web::Data<AppState>,
+    path: web::Path<String>,
+) -> HttpResponse {
+    let user_id = match get_user_id(&req) {
+        Some(id) => id,
+        None => return HttpResponse::Unauthorized().json(serde_json::json!({"error": "Unauthorized"})),
+    };
+
+    if let Err(e) = require_active_user(&data.db, &user_id).await {
+        return HttpResponse::Forbidden().json(serde_json::json!({
+            "error": "Account deactivated",
+            "message": "Your account has been deactivated."
+        }));
+    }
+
+    let session_id = path.into_inner();
+
+    let session = sqlx::query_as::<_, ExamSession>(
+        "SELECT * FROM exam_sessions WHERE id = ? AND user_id = ?",
+    )
+    .bind(&session_id)
+    .bind(&user_id)
+    .fetch_optional(&data.db)
+    .await;
+
+    match session {
+        Ok(Some(session)) => {
+            let subject_ids: Vec<String> = serde_json::from_str(&session.subjects).unwrap_or_default();
+            let stored_order: Vec<String> = serde_json::from_str(session.question_order.as_deref().unwrap_or("[]")).unwrap_or_default();
+
+            let questions = if subject_ids.is_empty() {
+                sqlx::query_as::<_, ExamSessionQuestion>(
+                    "SELECT q.id, q.question_text, q.option_a, q.option_b, q.option_c, q.option_d, q.explanation, q.correct_answer, s.name as subject_name, t.name as topic_name, q.difficulty
+                     FROM questions q
+                     LEFT JOIN subjects s ON q.subject_id = s.id
+                     LEFT JOIN topics t ON q.topic_id = t.id
+                     WHERE q.exam_type = ? AND q.is_active = 1
+                     ORDER BY RANDOM() LIMIT ?",
+                )
+                .bind(&session.exam_type)
+                .bind(session.question_count)
+                .fetch_all(&data.db)
+                .await
+                .unwrap_or_default()
+            } else {
+                let mut all_questions = Vec::new();
+                for sid in &subject_ids {
+                    let qs = sqlx::query_as::<_, ExamSessionQuestion>(
+                        "SELECT q.id, q.question_text, q.option_a, q.option_b, q.option_c, q.option_d, q.explanation, q.correct_answer, s.name as subject_name, t.name as topic_name, q.difficulty
+                         FROM questions q
+                         LEFT JOIN subjects s ON q.subject_id = s.id
+                         LEFT JOIN topics t ON q.topic_id = t.id
+                         WHERE q.subject_id = ? AND q.is_active = 1
+                         ORDER BY RANDOM() LIMIT ?",
+                    )
+                    .bind(sid)
+                    .bind(session.question_count / subject_ids.len() as i32 + 1)
+                    .fetch_all(&data.db)
+                    .await
+                    .unwrap_or_default();
+                    all_questions.extend(qs);
+                }
+                all_questions
+            };
+
+            // If no stored order, save the current random order
+            if stored_order.is_empty() && !questions.is_empty() {
+                let order_ids: Vec<&str> = questions.iter().map(|q| q.id.as_str()).collect();
+                let order_json = serde_json::to_string(&order_ids).unwrap_or_else(|_| "[]".into());
+                let _ = sqlx::query("UPDATE exam_sessions SET question_order = ? WHERE id = ?")
+                    .bind(&order_json)
+                    .bind(&session_id)
+                    .execute(&data.db)
+                    .await;
+            }
+
+            // Sort questions by stored order if available
+            let mut sorted_questions = questions;
+            if !stored_order.is_empty() {
+                sorted_questions.sort_by(|a, b| {
+                    let pos_a = stored_order.iter().position(|id| id == &a.id).unwrap_or(usize::MAX);
+                    let pos_b = stored_order.iter().position(|id| id == &b.id).unwrap_or(usize::MAX);
+                    pos_a.cmp(&pos_b)
+                });
+            }
+
+            // Fetch existing answers
+            let existing_answers = sqlx::query_as::<_, ExamAnswer>(
+                "SELECT * FROM exam_answers WHERE session_id = ?",
+            )
+            .bind(&session_id)
+            .fetch_all(&data.db)
+            .await
+            .unwrap_or_default();
+
+            let answers_map: std::collections::HashMap<String, ExamAnswer> = existing_answers
+                .into_iter()
+                .map(|a| (a.question_id.clone(), a))
+                .collect();
+
+            let session_questions: Vec<SessionQuestion> = sorted_questions
+                .into_iter()
+                .map(|q| {
+                    let answer = answers_map.get(&q.id);
+                    SessionQuestion {
+                        id: q.id,
+                        question_text: q.question_text,
+                        option_a: q.option_a,
+                        option_b: q.option_b,
+                        option_c: q.option_c,
+                        option_d: q.option_d,
+                        explanation: q.explanation,
+                        correct_answer: q.correct_answer,
+                        subject_name: q.subject_name,
+                        topic_name: q.topic_name,
+                        difficulty: q.difficulty,
+                        user_answer: answer.and_then(|a| a.selected_answer.clone()),
+                        is_correct: answer.and_then(|a| a.is_correct),
+                    }
+                })
+                .collect();
+
+            HttpResponse::Ok().json(SessionResponse {
+                session,
+                questions: session_questions,
+            })
+        }
+        Ok(None) => HttpResponse::NotFound().json(serde_json::json!({"error": "Session not found"})),
+        Err(e) => {
+            log::error!("Get exam session error: {}", e);
+            HttpResponse::InternalServerError().json(serde_json::json!({"error": "Internal server error"}))
+        }
+    }
+}
+
+#[derive(FromRow)]
+struct ExamSessionQuestion {
+    id: String,
+    question_text: String,
+    option_a: String,
+    option_b: String,
+    option_c: String,
+    option_d: String,
+    explanation: Option<String>,
+    correct_answer: String,
+    subject_name: Option<String>,
+    topic_name: Option<String>,
+    difficulty: String,
+}
+
+pub async fn submit_answer(
+    req: HttpRequest,
+    data: web::Data<AppState>,
+    path: web::Path<String>,
+    body: web::Json<SubmitAnswerRequest>,
+) -> HttpResponse {
+    let user_id = match get_user_id(&req) {
+        Some(id) => id,
+        None => return HttpResponse::Unauthorized().json(serde_json::json!({"error": "Unauthorized"})),
+    };
+    let session_id = path.into_inner();
+
+    // Verify session belongs to user and is in progress
+    let session = sqlx::query_as::<_, ExamSession>(
+        "SELECT * FROM exam_sessions WHERE id = ? AND user_id = ? AND status = 'in_progress'",
+    )
+    .bind(&session_id)
+    .bind(&user_id)
+    .fetch_optional(&data.db)
+    .await;
+
+    match session {
+        Ok(Some(_)) => {}
+        Ok(None) => return HttpResponse::NotFound().json(serde_json::json!({"error": "Session not found or already completed"})),
+        Err(_) => return HttpResponse::InternalServerError().json(serde_json::json!({"error": "Internal server error"})),
+    }
+
+    // Get correct answer
+    let question = sqlx::query_scalar::<_, String>(
+        "SELECT correct_answer FROM questions WHERE id = ?",
+    )
+    .bind(&body.question_id)
+    .fetch_optional(&data.db)
+    .await;
+
+    let correct_answer = match question {
+        Ok(Some(ca)) => ca,
+        _ => return HttpResponse::NotFound().json(serde_json::json!({"error": "Question not found"})),
+    };
+
+    let is_correct = body.selected_answer.to_uppercase() == correct_answer;
+    let answer_id = Uuid::new_v4().to_string();
+    let now = Utc::now().naive_utc();
+
+    let result = sqlx::query(
+        "INSERT INTO exam_answers (id, session_id, question_id, selected_answer, is_correct, time_spent_seconds, answered_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?)
+         ON CONFLICT(session_id, question_id) DO UPDATE SET selected_answer = excluded.selected_answer, is_correct = excluded.is_correct, time_spent_seconds = excluded.time_spent_seconds, answered_at = excluded.answered_at",
+    )
+    .bind(&answer_id)
+    .bind(&session_id)
+    .bind(&body.question_id)
+    .bind(&body.selected_answer.to_uppercase())
+    .bind(is_correct)
+    .bind(body.time_spent_seconds.unwrap_or(0))
+    .bind(now)
+    .execute(&data.db)
+    .await;
+
+    match result {
+        Ok(_) => HttpResponse::Ok().json(serde_json::json!({
+            "correct": is_correct,
+            "correct_answer": correct_answer,
+        })),
+        Err(e) => {
+            log::error!("Submit answer error: {}", e);
+            HttpResponse::InternalServerError().json(serde_json::json!({"error": "Failed to save answer"}))
+        }
+    }
+}
+
+pub async fn submit_exam_session(
+    req: HttpRequest,
+    data: web::Data<AppState>,
+    path: web::Path<String>,
+    body: web::Json<SubmitAllRequest>,
+) -> HttpResponse {
+    let user_id = match get_user_id(&req) {
+        Some(id) => id,
+        None => return HttpResponse::Unauthorized().json(serde_json::json!({"error": "Unauthorized"})),
+    };
+    let session_id = path.into_inner();
+
+    // Verify session belongs to user
+    let session = sqlx::query_as::<_, ExamSession>(
+        "SELECT * FROM exam_sessions WHERE id = ? AND user_id = ?",
+    )
+    .bind(&session_id)
+    .bind(&user_id)
+    .fetch_optional(&data.db)
+    .await;
+
+    let session = match session {
+        Ok(Some(s)) => s,
+        Ok(None) => return HttpResponse::NotFound().json(serde_json::json!({"error": "Session not found"})),
+        Err(_) => return HttpResponse::InternalServerError().json(serde_json::json!({"error": "Internal server error"})),
+    };
+
+    // Save all answers
+    for answer in &body.answers {
+        let question = sqlx::query_scalar::<_, String>(
+            "SELECT correct_answer FROM questions WHERE id = ?",
+        )
+        .bind(&answer.question_id)
+        .fetch_optional(&data.db)
+        .await;
+
+        if let Ok(Some(correct)) = question {
+            let is_correct = answer.selected_answer.to_uppercase() == correct;
+            let answer_id = Uuid::new_v4().to_string();
+            let now = Utc::now().naive_utc();
+
+            let _ = sqlx::query(
+                "INSERT INTO exam_answers (id, session_id, question_id, selected_answer, is_correct, time_spent_seconds, answered_at)
+                 VALUES (?, ?, ?, ?, ?, ?, ?)
+                 ON CONFLICT(session_id, question_id) DO UPDATE SET selected_answer = excluded.selected_answer, is_correct = excluded.is_correct, time_spent_seconds = excluded.time_spent_seconds, answered_at = excluded.answered_at",
+            )
+            .bind(&answer_id)
+            .bind(&session_id)
+            .bind(&answer.question_id)
+            .bind(&answer.selected_answer.to_uppercase())
+            .bind(is_correct)
+            .bind(answer.time_spent_seconds.unwrap_or(0))
+            .bind(now)
+            .execute(&data.db)
+            .await;
+        }
+    }
+
+    // Calculate results
+    let stats = sqlx::query_as::<_, (i64, Option<i64>)>(
+        "SELECT COUNT(*) as total, SUM(CASE WHEN is_correct = 1 THEN 1 ELSE 0 END) as correct FROM exam_answers WHERE session_id = ?",
+    )
+    .bind(&session_id)
+    .fetch_one(&data.db)
+    .await
+    .unwrap_or((0, Some(0)));
+
+    let total_answered = stats.0 as i32;
+    let total_correct = stats.1.unwrap_or(0) as i32;
+    let score = if total_answered > 0 { ((total_correct as f64 / total_answered as f64) * 100.0).round() } else { 0.0 };
+    let now = Utc::now().naive_utc();
+
+    // Update session
+    let _ = sqlx::query(
+        "UPDATE exam_sessions SET status = 'completed', completed_at = ?, score = ?, total_correct = ?, total_answered = ?, time_spent_seconds = ? WHERE id = ?",
+    )
+    .bind(now)
+    .bind(score)
+    .bind(total_correct)
+    .bind(total_answered)
+    .bind(body.time_spent_seconds.unwrap_or(0))
+    .bind(&session_id)
+    .execute(&data.db)
+    .await;
+
+    // Fetch updated session
+    let updated_session = sqlx::query_as::<_, ExamSession>(
+        "SELECT * FROM exam_sessions WHERE id = ?",
+    )
+    .bind(&session_id)
+    .fetch_one(&data.db)
+    .await
+    .unwrap();
+
+    // Get results by subject
+    let by_subject = sqlx::query_as::<_, (String, i64, i64)>(
+        "SELECT COALESCE(s.name, 'Unknown') as subject_name,
+                COUNT(*) as total,
+                SUM(CASE WHEN ea.is_correct = 1 THEN 1 ELSE 0 END) as correct
+         FROM exam_answers ea
+         JOIN questions q ON ea.question_id = q.id
+         LEFT JOIN subjects s ON q.subject_id = s.id
+         WHERE ea.session_id = ?
+         GROUP BY s.name",
+    )
+    .bind(&session_id)
+    .fetch_all(&data.db)
+    .await
+    .unwrap_or_default()
+    .into_iter()
+    .map(|(name, total, correct)| SubjectResult {
+        subject_name: name,
+        correct,
+        total,
+        percentage: if total > 0 { ((correct as f64 / total as f64) * 100.0).round() } else { 0.0 },
+    })
+    .collect();
+
+    let by_difficulty = sqlx::query_as::<_, (String, i64, i64)>(
+        "SELECT COALESCE(q.difficulty, 'medium') as difficulty,
+                COUNT(*) as total,
+                SUM(CASE WHEN ea.is_correct = 1 THEN 1 ELSE 0 END) as correct
+         FROM exam_answers ea
+         JOIN questions q ON ea.question_id = q.id
+         WHERE ea.session_id = ?
+         GROUP BY q.difficulty",
+    )
+    .bind(&session_id)
+    .fetch_all(&data.db)
+    .await
+    .unwrap_or_default()
+    .into_iter()
+    .map(|(diff, total, correct)| DifficultyResult {
+        difficulty: diff,
+        correct,
+        total,
+        percentage: if total > 0 { ((correct as f64 / total as f64) * 100.0).round() } else { 0.0 },
+    })
+    .collect();
+
+    HttpResponse::Ok().json(SessionResult {
+        session: updated_session,
+        total_correct,
+        total_answered,
+        score,
+        by_subject,
+        by_difficulty,
+    })
+}
+
+pub async fn list_exam_sessions(
+    req: HttpRequest,
+    data: web::Data<AppState>,
+) -> HttpResponse {
+    let user_id = match get_user_id(&req) {
+        Some(id) => id,
+        None => return HttpResponse::Unauthorized().json(serde_json::json!({"error": "Unauthorized"})),
+    };
+
+    if let Err(e) = require_active_user(&data.db, &user_id).await {
+        return HttpResponse::Forbidden().json(serde_json::json!({
+            "error": "Account deactivated",
+            "message": "Your account has been deactivated."
+        }));
+    }
+
+    let sessions = sqlx::query_as::<_, ExamSession>(
+        "SELECT * FROM exam_sessions WHERE user_id = ? ORDER BY started_at DESC LIMIT 50",
+    )
+    .bind(&user_id)
+    .fetch_all(&data.db)
+    .await;
+
+    match sessions {
+        Ok(sessions) => HttpResponse::Ok().json(serde_json::json!({
+            "sessions": sessions,
+            "total": sessions.len(),
+        })),
+        Err(e) => {
+            log::error!("List exam sessions error: {}", e);
+            HttpResponse::InternalServerError().json(serde_json::json!({"error": "Internal server error"}))
+        }
+    }
+}
+
+pub async fn get_session_results(
+    req: HttpRequest,
+    data: web::Data<AppState>,
+    path: web::Path<String>,
+) -> HttpResponse {
+    let user_id = match get_user_id(&req) {
+        Some(id) => id,
+        None => return HttpResponse::Unauthorized().json(serde_json::json!({"error": "Unauthorized"})),
+    };
+    let session_id = path.into_inner();
+
+    let session = sqlx::query_as::<_, ExamSession>(
+        "SELECT * FROM exam_sessions WHERE id = ? AND user_id = ?",
+    )
+    .bind(&session_id)
+    .bind(&user_id)
+    .fetch_optional(&data.db)
+    .await;
+
+    match session {
+        Ok(Some(session)) => {
+            let by_subject = sqlx::query_as::<_, (String, i64, i64)>(
+                "SELECT COALESCE(s.name, 'Unknown') as subject_name,
+                        COUNT(*) as total,
+                        SUM(CASE WHEN ea.is_correct = 1 THEN 1 ELSE 0 END) as correct
+                 FROM exam_answers ea
+                 JOIN questions q ON ea.question_id = q.id
+                 LEFT JOIN subjects s ON q.subject_id = s.id
+                 WHERE ea.session_id = ?
+                 GROUP BY s.name",
+            )
+            .bind(&session_id)
+            .fetch_all(&data.db)
+            .await
+            .unwrap_or_default()
+            .into_iter()
+            .map(|(name, total, correct)| SubjectResult {
+                subject_name: name,
+                correct,
+                total,
+                percentage: if total > 0 { ((correct as f64 / total as f64) * 100.0).round() } else { 0.0 },
+            })
+            .collect();
+
+            let by_difficulty = sqlx::query_as::<_, (String, i64, i64)>(
+                "SELECT COALESCE(q.difficulty, 'medium') as difficulty,
+                        COUNT(*) as total,
+                        SUM(CASE WHEN ea.is_correct = 1 THEN 1 ELSE 0 END) as correct
+                 FROM exam_answers ea
+                 JOIN questions q ON ea.question_id = q.id
+                 WHERE ea.session_id = ?
+                 GROUP BY q.difficulty",
+            )
+            .bind(&session_id)
+            .fetch_all(&data.db)
+            .await
+            .unwrap_or_default()
+            .into_iter()
+            .map(|(diff, total, correct)| DifficultyResult {
+                difficulty: diff,
+                correct,
+                total,
+                percentage: if total > 0 { ((correct as f64 / total as f64) * 100.0).round() } else { 0.0 },
+            })
+            .collect();
+
+            let total_correct = session.total_correct.unwrap_or(0);
+            let total_answered = session.total_answered.unwrap_or(0);
+            let score = session.score.unwrap_or(0.0);
+
+            HttpResponse::Ok().json(SessionResult {
+                session,
+                total_correct,
+                total_answered,
+                score,
+                by_subject,
+                by_difficulty,
+            })
+        }
+        Ok(None) => HttpResponse::NotFound().json(serde_json::json!({"error": "Session not found"})),
+        Err(e) => {
+            log::error!("Get session results error: {}", e);
+            HttpResponse::InternalServerError().json(serde_json::json!({"error": "Internal server error"}))
+        }
+    }
+}
+
+pub async fn abandon_session(
+    req: HttpRequest,
+    data: web::Data<AppState>,
+    path: web::Path<String>,
+) -> HttpResponse {
+    let user_id = match get_user_id(&req) {
+        Some(id) => id,
+        None => return HttpResponse::Unauthorized().json(serde_json::json!({"error": "Unauthorized"})),
+    };
+    let session_id = path.into_inner();
+
+    let result = sqlx::query(
+        "UPDATE exam_sessions SET status = 'abandoned', completed_at = ? WHERE id = ? AND user_id = ? AND status = 'in_progress'",
+    )
+    .bind(Utc::now().naive_utc())
+    .bind(&session_id)
+    .bind(&user_id)
+    .execute(&data.db)
+    .await;
+
+    match result {
+        Ok(_) => HttpResponse::Ok().json(serde_json::json!({"message": "Session abandoned"})),
+        Err(e) => {
+            log::error!("Abandon session error: {}", e);
+            HttpResponse::InternalServerError().json(serde_json::json!({"error": "Internal server error"}))
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Bookmarks
+// ---------------------------------------------------------------------------
+
+pub async fn list_bookmarks(
+    req: HttpRequest,
+    data: web::Data<AppState>,
+) -> HttpResponse {
+    let user_id = match get_user_id(&req) {
+        Some(id) => id,
+        None => return HttpResponse::Unauthorized().json(serde_json::json!({"error": "Unauthorized"})),
+    };
+
+    if let Err(e) = require_active_user(&data.db, &user_id).await {
+        return HttpResponse::Forbidden().json(serde_json::json!({
+            "error": "Account deactivated",
+            "message": "Your account has been deactivated."
+        }));
+    }
+
+    let bookmarks = sqlx::query_as::<_, BookmarkedQuestion>(
+        "SELECT b.id, b.question_id, q.question_text, q.exam_type, s.name as subject_name, q.difficulty, b.created_at
+         FROM bookmarks b
+         JOIN questions q ON b.question_id = q.id
+         LEFT JOIN subjects s ON q.subject_id = s.id
+         WHERE b.user_id = ?
+         ORDER BY b.created_at DESC",
+    )
+    .bind(&user_id)
+    .fetch_all(&data.db)
+    .await;
+
+    match bookmarks {
+        Ok(bookmarks) => HttpResponse::Ok().json(serde_json::json!({
+            "bookmarks": bookmarks,
+            "total": bookmarks.len(),
+        })),
+        Err(e) => {
+            log::error!("List bookmarks error: {}", e);
+            HttpResponse::InternalServerError().json(serde_json::json!({"error": "Internal server error"}))
+        }
+    }
+}
+
+pub async fn create_bookmark(
+    req: HttpRequest,
+    data: web::Data<AppState>,
+    body: web::Json<CreateBookmarkRequest>,
+) -> HttpResponse {
+    let user_id = match get_user_id(&req) {
+        Some(id) => id,
+        None => return HttpResponse::Unauthorized().json(serde_json::json!({"error": "Unauthorized"})),
+    };
+
+    if let Err(e) = require_active_user(&data.db, &user_id).await {
+        return HttpResponse::Forbidden().json(serde_json::json!({
+            "error": "Account deactivated",
+            "message": "Your account has been deactivated."
+        }));
+    }
+
+    let id = Uuid::new_v4().to_string();
+    let now = Utc::now().naive_utc();
+
+    let result = sqlx::query(
+        "INSERT OR IGNORE INTO bookmarks (id, user_id, question_id, created_at) VALUES (?, ?, ?, ?)",
+    )
+    .bind(&id)
+    .bind(&user_id)
+    .bind(&body.question_id)
+    .bind(now)
+    .execute(&data.db)
+    .await;
+
+    match result {
+        Ok(_) => HttpResponse::Created().json(serde_json::json!({"id": id, "message": "Bookmarked"})),
+        Err(e) => {
+            log::error!("Create bookmark error: {}", e);
+            HttpResponse::InternalServerError().json(serde_json::json!({"error": "Failed to bookmark"}))
+        }
+    }
+}
+
+pub async fn delete_bookmark(
+    req: HttpRequest,
+    data: web::Data<AppState>,
+    path: web::Path<String>,
+) -> HttpResponse {
+    let user_id = match get_user_id(&req) {
+        Some(id) => id,
+        None => return HttpResponse::Unauthorized().json(serde_json::json!({"error": "Unauthorized"})),
+    };
+    let question_id = path.into_inner();
+
+    let result = sqlx::query(
+        "DELETE FROM bookmarks WHERE user_id = ? AND question_id = ?",
+    )
+    .bind(&user_id)
+    .bind(&question_id)
+    .execute(&data.db)
+    .await;
+
+    match result {
+        Ok(_) => HttpResponse::Ok().json(serde_json::json!({"message": "Bookmark removed"})),
+        Err(e) => {
+            log::error!("Delete bookmark error: {}", e);
+            HttpResponse::InternalServerError().json(serde_json::json!({"error": "Internal server error"}))
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// User Stats
+// ---------------------------------------------------------------------------
+
+pub async fn get_user_stats(
+    req: HttpRequest,
+    data: web::Data<AppState>,
+) -> HttpResponse {
+    let user_id = match get_user_id(&req) {
+        Some(id) => id,
+        None => return HttpResponse::Unauthorized().json(serde_json::json!({"error": "Unauthorized"})),
+    };
+
+    if let Err(e) = require_active_user(&data.db, &user_id).await {
+        return HttpResponse::Forbidden().json(serde_json::json!({
+            "error": "Account deactivated",
+            "message": "Your account has been deactivated."
+        }));
+    }
+
+    let total_answered = sqlx::query_scalar::<_, i64>(
+        "SELECT COALESCE(SUM(total_answered), 0) FROM exam_sessions WHERE user_id = ? AND status = 'completed'",
+    )
+    .bind(&user_id)
+    .fetch_one(&data.db)
+    .await
+    .unwrap_or(0);
+
+    let total_correct = sqlx::query_scalar::<_, i64>(
+        "SELECT COALESCE(SUM(total_correct), 0) FROM exam_sessions WHERE user_id = ? AND status = 'completed'",
+    )
+    .bind(&user_id)
+    .fetch_one(&data.db)
+    .await
+    .unwrap_or(0);
+
+    let avg_score = sqlx::query_scalar::<_, Option<f64>>(
+        "SELECT AVG(score) FROM exam_sessions WHERE user_id = ? AND status = 'completed'",
+    )
+    .bind(&user_id)
+    .fetch_one(&data.db)
+    .await
+    .ok()
+    .flatten()
+    .unwrap_or(0.0);
+
+    let total_sessions = sqlx::query_scalar::<_, i64>(
+        "SELECT COUNT(*) FROM exam_sessions WHERE user_id = ? AND status = 'completed'",
+    )
+    .bind(&user_id)
+    .fetch_one(&data.db)
+    .await
+    .unwrap_or(0);
+
+    let study_time = sqlx::query_scalar::<_, Option<i64>>(
+        "SELECT SUM(time_spent_seconds) FROM exam_sessions WHERE user_id = ? AND status = 'completed'",
+    )
+    .bind(&user_id)
+    .fetch_one(&data.db)
+    .await
+    .ok()
+    .flatten()
+    .unwrap_or(0);
+
+    let bookmark_count = sqlx::query_scalar::<_, i64>(
+        "SELECT COUNT(*) FROM bookmarks WHERE user_id = ?",
+    )
+    .bind(&user_id)
+    .fetch_one(&data.db)
+    .await
+    .unwrap_or(0);
+
+    // Calculate streak (consecutive days with at least one session)
+    let study_days = sqlx::query_scalar::<_, String>(
+        "SELECT DISTINCT date(started_at) as day FROM exam_sessions WHERE user_id = ? AND status = 'completed' ORDER BY day DESC",
+    )
+    .bind(&user_id)
+    .fetch_all(&data.db)
+    .await
+    .unwrap_or_default();
+
+    let mut streak = 0i64;
+    let today = Utc::now().format("%Y-%m-%d").to_string();
+    let mut expected_date = today;
+
+    for day in &study_days {
+        if *day == expected_date {
+            streak += 1;
+            // Calculate previous day
+            if let Ok(date) = chrono::NaiveDate::parse_from_str(&expected_date, "%Y-%m-%d") {
+                expected_date = (date - chrono::Duration::days(1)).format("%Y-%m-%d").to_string();
+            }
+        } else {
+            break;
+        }
+    }
+
+    HttpResponse::Ok().json(UserStats {
+        total_answered,
+        total_correct,
+        avg_score,
+        study_streak: streak,
+        study_time_hours: study_time as f64 / 3600.0,
+        total_sessions,
+        bookmark_count,
+    })
 }
