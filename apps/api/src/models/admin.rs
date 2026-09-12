@@ -113,6 +113,8 @@ pub struct CreateExamRequest {
     pub description: Option<String>,
     pub total_questions: Option<i32>,
     pub time_limit_minutes: Option<i32>,
+    pub min_subjects: Option<i32>,
+    pub max_subjects: Option<i32>,
     pub icon_url: Option<String>,
 }
 
@@ -122,6 +124,8 @@ pub struct UpdateExamRequest {
     pub description: Option<String>,
     pub total_questions: Option<i32>,
     pub time_limit_minutes: Option<i32>,
+    pub min_subjects: Option<i32>,
+    pub max_subjects: Option<i32>,
     pub is_active: Option<bool>,
     pub icon_url: Option<String>,
 }
@@ -134,6 +138,8 @@ pub struct Exam {
     pub description: Option<String>,
     pub total_questions: i32,
     pub time_limit_minutes: i32,
+    pub min_subjects: i32,
+    pub max_subjects: i32,
     pub is_active: bool,
     pub icon_url: Option<String>,
     pub created_at: NaiveDateTime,
@@ -148,6 +154,8 @@ pub struct ExamWithCounts {
     pub description: Option<String>,
     pub total_questions: i32,
     pub time_limit_minutes: i32,
+    pub min_subjects: i32,
+    pub max_subjects: i32,
     pub is_active: bool,
     pub icon_url: Option<String>,
     pub created_at: NaiveDateTime,
@@ -256,7 +264,7 @@ pub struct ImportResult {
     pub errors: Vec<ImportError>,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct ImportError {
     pub row: u32,
     pub reason: String,

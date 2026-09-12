@@ -3,6 +3,7 @@ use bcrypt::{hash, verify, DEFAULT_COST};
 use chrono::Utc;
 use jsonwebtoken::{decode, encode, DecodingKey, EncodingKey, Header, Validation};
 use rand::Rng;
+use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::models::admin::*;
@@ -456,6 +457,120 @@ pub async fn delete_user(
 }
 
 // ---------------------------------------------------------------------------
+// 7b. Ban user
+// ---------------------------------------------------------------------------
+
+pub async fn ban_user(
+    req: HttpRequest,
+    data: web::Data<AppState>,
+    path: web::Path<String>,
+    body: web::Json<serde_json::Value>,
+) -> HttpResponse {
+    let user_id = path.into_inner();
+    let ban_reason = body.get("reason").and_then(|v| v.as_str()).unwrap_or("No reason provided");
+    let now = Utc::now().naive_utc();
+
+    // Prevent banning yourself
+    if let Some(admin_id) = extract_admin_id(&req, &data.config.jwt_secret) {
+        if admin_id == user_id {
+            return HttpResponse::BadRequest().json(serde_json::json!({
+                "error": "You cannot ban yourself"
+            }));
+        }
+    }
+
+    let result = sqlx::query(
+        "UPDATE users SET is_banned = 1, ban_reason = ?, is_active = 0, updated_at = ? WHERE id = ?",
+    )
+    .bind(ban_reason)
+    .bind(now)
+    .bind(&user_id)
+    .execute(&data.db)
+    .await;
+
+    match result {
+        Ok(_) => {
+            if let Ok(Some(admin)) = sqlx::query_as::<_, User>("SELECT * FROM users WHERE role = 'admin' OR role = 'super_admin' LIMIT 1")
+                .fetch_optional(&data.db)
+                .await
+            {
+                log_audit(
+                    &data.db,
+                    &admin.id,
+                    &admin.email,
+                    "ban_user",
+                    "user",
+                    Some(&user_id),
+                    Some(ban_reason),
+                    get_ip(&req).as_deref(),
+                )
+                .await;
+            }
+            HttpResponse::Ok().json(serde_json::json!({
+                "message": "User banned successfully"
+            }))
+        }
+        Err(e) => {
+            log::error!("Ban user error: {}", e);
+            HttpResponse::InternalServerError().json(serde_json::json!({
+                "error": "Failed to ban user"
+            }))
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// 7c. Unban user
+// ---------------------------------------------------------------------------
+
+pub async fn unban_user(
+    req: HttpRequest,
+    data: web::Data<AppState>,
+    path: web::Path<String>,
+) -> HttpResponse {
+    let user_id = path.into_inner();
+    let now = Utc::now().naive_utc();
+
+    let result = sqlx::query(
+        "UPDATE users SET is_banned = 0, ban_reason = NULL, is_active = 1, updated_at = ? WHERE id = ?",
+    )
+    .bind(now)
+    .bind(&user_id)
+    .execute(&data.db)
+    .await;
+
+    match result {
+        Ok(_) => {
+            if let Ok(Some(admin)) = sqlx::query_as::<_, User>("SELECT * FROM users WHERE role = 'admin' OR role = 'super_admin' LIMIT 1")
+                .fetch_optional(&data.db)
+                .await
+            {
+                log_audit(
+                    &data.db,
+                    &admin.id,
+                    &admin.email,
+                    "unban_user",
+                    "user",
+                    Some(&user_id),
+                    None,
+                    get_ip(&req).as_deref(),
+                )
+                .await;
+            }
+            HttpResponse::Ok().json(serde_json::json!({
+                "message": "User unbanned successfully"
+            }))
+        }
+        Err(e) => {
+            log::error!("Unban user error: {}", e);
+            HttpResponse::InternalServerError().json(serde_json::json!({
+                "error": "Failed to unban user"
+            }))
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
 // 8. Resend verification
 // ---------------------------------------------------------------------------
 
@@ -833,7 +948,7 @@ pub async fn key_stats(data: web::Data<AppState>) -> HttpResponse {
 
 pub async fn list_exams(data: web::Data<AppState>) -> HttpResponse {
     let exams = sqlx::query_as::<_, ExamWithCounts>(
-        "SELECT e.id, e.name, e.slug, e.description, e.total_questions, e.time_limit_minutes, e.is_active, e.icon_url, e.created_at, (SELECT COUNT(*) FROM subjects WHERE exam_id = e.id AND is_active = 1) AS subject_count, (SELECT COUNT(*) FROM questions WHERE exam_type = e.slug AND is_active = 1) AS question_count FROM exams e ORDER BY e.created_at DESC",
+        "SELECT e.id, e.name, e.slug, e.description, e.total_questions, e.time_limit_minutes, e.min_subjects, e.max_subjects, e.is_active, e.icon_url, e.created_at, (SELECT COUNT(*) FROM subjects WHERE exam_id = e.id AND is_active = 1) AS subject_count, (SELECT COUNT(*) FROM questions WHERE exam_type = e.slug AND is_active = 1) AS question_count FROM exams e ORDER BY e.created_at DESC",
     )
     .fetch_all(&data.db)
     .await;
@@ -866,7 +981,7 @@ pub async fn create_exam(
     let slug = slugify(&body.name);
 
     let result = sqlx::query(
-        "INSERT INTO exams (id, name, slug, description, total_questions, time_limit_minutes, is_active, icon_url, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?, ?)",
+        "INSERT INTO exams (id, name, slug, description, total_questions, time_limit_minutes, min_subjects, max_subjects, is_active, icon_url, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?)",
     )
     .bind(&id)
     .bind(&body.name)
@@ -874,6 +989,8 @@ pub async fn create_exam(
     .bind(&body.description)
     .bind(body.total_questions.unwrap_or(0))
     .bind(body.time_limit_minutes.unwrap_or(60))
+    .bind(body.min_subjects.unwrap_or(1))
+    .bind(body.max_subjects.unwrap_or(0))
     .bind(&body.icon_url)
     .bind(now)
     .bind(now)
@@ -932,13 +1049,15 @@ pub async fn update_exam(
     let slug = body.name.as_ref().map(|n| slugify(n));
 
     let result = sqlx::query(
-        "UPDATE exams SET name = COALESCE(?, name), slug = COALESCE(?, slug), description = COALESCE(?, description), total_questions = COALESCE(?, total_questions), time_limit_minutes = COALESCE(?, time_limit_minutes), is_active = COALESCE(?, is_active), icon_url = COALESCE(?, icon_url), updated_at = ? WHERE id = ?",
+        "UPDATE exams SET name = COALESCE(?, name), slug = COALESCE(?, slug), description = COALESCE(?, description), total_questions = COALESCE(?, total_questions), time_limit_minutes = COALESCE(?, time_limit_minutes), min_subjects = COALESCE(?, min_subjects), max_subjects = COALESCE(?, max_subjects), is_active = COALESCE(?, is_active), icon_url = COALESCE(?, icon_url), updated_at = ? WHERE id = ?",
     )
     .bind(&body.name)
     .bind(&slug)
     .bind(&body.description)
     .bind(body.total_questions)
     .bind(body.time_limit_minutes)
+    .bind(body.min_subjects)
+    .bind(body.max_subjects)
     .bind(body.is_active)
     .bind(&body.icon_url)
     .bind(now)
@@ -1183,6 +1302,142 @@ pub async fn create_topic(
 }
 
 // ---------------------------------------------------------------------------
+// 19c. Update subject
+// ---------------------------------------------------------------------------
+
+pub async fn update_subject(
+    data: web::Data<AppState>,
+    path: web::Path<String>,
+    body: web::Json<serde_json::Value>,
+) -> HttpResponse {
+    let id = path.into_inner();
+    let name = body.get("name").and_then(|v| v.as_str()).unwrap_or("");
+    let description = body.get("description").and_then(|v| v.as_str());
+
+    if name.is_empty() {
+        return HttpResponse::BadRequest().json(serde_json::json!({"error": "Name is required"}));
+    }
+
+    let result = sqlx::query(
+        "UPDATE subjects SET name = ?, slug = ?, description = ? WHERE id = ?",
+    )
+    .bind(name)
+    .bind(slugify(name))
+    .bind(description)
+    .bind(&id)
+    .execute(&data.db)
+    .await;
+
+    match result {
+        Ok(_) => {
+            let subject = sqlx::query_as::<_, Subject>("SELECT * FROM subjects WHERE id = ?")
+                .bind(&id)
+                .fetch_one(&data.db)
+                .await;
+            match subject {
+                Ok(s) => HttpResponse::Ok().json(s),
+                Err(_) => HttpResponse::Ok().json(serde_json::json!({"message": "Updated"})),
+            }
+        }
+        Err(e) => {
+            log::error!("Update subject error: {}", e);
+            HttpResponse::InternalServerError().json(serde_json::json!({"error": "Failed to update subject"}))
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// 19d. Delete subject
+// ---------------------------------------------------------------------------
+
+pub async fn delete_subject(
+    data: web::Data<AppState>,
+    path: web::Path<String>,
+) -> HttpResponse {
+    let id = path.into_inner();
+
+    let result = sqlx::query("DELETE FROM subjects WHERE id = ?")
+        .bind(&id)
+        .execute(&data.db)
+        .await;
+
+    match result {
+        Ok(_) => HttpResponse::Ok().json(serde_json::json!({"message": "Subject deleted"})),
+        Err(e) => {
+            log::error!("Delete subject error: {}", e);
+            HttpResponse::InternalServerError().json(serde_json::json!({"error": "Failed to delete subject"}))
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// 20b. Update topic
+// ---------------------------------------------------------------------------
+
+pub async fn update_topic(
+    data: web::Data<AppState>,
+    path: web::Path<String>,
+    body: web::Json<serde_json::Value>,
+) -> HttpResponse {
+    let id = path.into_inner();
+    let name = body.get("name").and_then(|v| v.as_str()).unwrap_or("");
+
+    if name.is_empty() {
+        return HttpResponse::BadRequest().json(serde_json::json!({"error": "Name is required"}));
+    }
+
+    let result = sqlx::query(
+        "UPDATE topics SET name = ?, slug = ? WHERE id = ?",
+    )
+    .bind(name)
+    .bind(slugify(name))
+    .bind(&id)
+    .execute(&data.db)
+    .await;
+
+    match result {
+        Ok(_) => {
+            let topic = sqlx::query_as::<_, Topic>("SELECT * FROM topics WHERE id = ?")
+                .bind(&id)
+                .fetch_one(&data.db)
+                .await;
+            match topic {
+                Ok(t) => HttpResponse::Ok().json(t),
+                Err(_) => HttpResponse::Ok().json(serde_json::json!({"message": "Updated"})),
+            }
+        }
+        Err(e) => {
+            log::error!("Update topic error: {}", e);
+            HttpResponse::InternalServerError().json(serde_json::json!({"error": "Failed to update topic"}))
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// 20c. Delete topic
+// ---------------------------------------------------------------------------
+
+pub async fn delete_topic(
+    data: web::Data<AppState>,
+    path: web::Path<String>,
+) -> HttpResponse {
+    let id = path.into_inner();
+
+    let result = sqlx::query("DELETE FROM topics WHERE id = ?")
+        .bind(&id)
+        .execute(&data.db)
+        .await;
+
+    match result {
+        Ok(_) => HttpResponse::Ok().json(serde_json::json!({"message": "Topic deleted"})),
+        Err(e) => {
+            log::error!("Delete topic error: {}", e);
+            HttpResponse::InternalServerError().json(serde_json::json!({"error": "Failed to delete topic"}))
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
 // 21. List questions
 // ---------------------------------------------------------------------------
 
@@ -1391,6 +1646,9 @@ pub async fn import_questions_csv(
         }));
     }
 
+    let header: Vec<String> = lines[0].split(',').map(|f| f.trim().to_lowercase()).collect();
+    let has_exam_type = header.first().map_or(false, |h| h == "exam_type");
+
     let mut success: u32 = 0;
     let mut failed: u32 = 0;
     let mut errors: Vec<ImportError> = Vec::new();
@@ -1398,27 +1656,45 @@ pub async fn import_questions_csv(
     for (idx, line) in lines.iter().enumerate().skip(1) {
         let row = (idx + 1) as u32;
         let fields: Vec<&str> = line.split(',').map(|f| f.trim().trim_matches('"')).collect();
-        if fields.len() < 8 {
-            failed += 1;
-            errors.push(ImportError { row, reason: format!("Expected at least 8 fields, got {}", fields.len()) });
-            continue;
-        }
 
-        let exam_type = fields[0].trim();
-        let question_text = fields[1].trim();
-        let option_a = fields[2].trim();
-        let option_b = fields[3].trim();
-        let option_c = fields[4].trim();
-        let option_d = fields[5].trim();
-        let correct_answer = fields[6].trim().to_uppercase();
-        let explanation = fields.get(7).map(|s| s.trim()).unwrap_or("");
-        let difficulty = fields.get(8).map(|s| s.trim().to_lowercase()).unwrap_or_else(|| "medium".to_string());
+        let (exam_type, subject_name, question_text, option_a, option_b, option_c, option_d, correct_answer, explanation, difficulty) = if has_exam_type {
+            if fields.len() < 9 {
+                failed += 1;
+                errors.push(ImportError { row, reason: format!("Expected at least 9 fields (exam_type,...), got {}", fields.len()) });
+                continue;
+            }
+            (
+                fields[0].trim(),
+                fields[1].trim(),
+                fields[2].trim(),
+                fields[3].trim(),
+                fields[4].trim(),
+                fields[5].trim(),
+                fields[6].trim(),
+                fields[7].trim().to_uppercase(),
+                fields.get(8).map(|s| s.trim()).unwrap_or(""),
+                fields.get(9).map(|s| s.trim().to_lowercase()).unwrap_or_else(|| "medium".to_string()),
+            )
+        } else {
+            if fields.len() < 8 {
+                failed += 1;
+                errors.push(ImportError { row, reason: format!("Expected at least 8 fields (subject,...), got {}", fields.len()) });
+                continue;
+            }
+            (
+                "",
+                fields[0].trim(),
+                fields[1].trim(),
+                fields[2].trim(),
+                fields[3].trim(),
+                fields[4].trim(),
+                fields[5].trim(),
+                fields[6].trim().to_uppercase(),
+                fields.get(7).map(|s| s.trim()).unwrap_or(""),
+                fields.get(8).map(|s| s.trim().to_lowercase()).unwrap_or_else(|| "medium".to_string()),
+            )
+        };
 
-        if exam_type.is_empty() {
-            failed += 1;
-            errors.push(ImportError { row, reason: "exam_type is required".into() });
-            continue;
-        }
         if question_text.is_empty() {
             failed += 1;
             errors.push(ImportError { row, reason: "question_text is required".into() });
@@ -1436,18 +1712,94 @@ pub async fn import_questions_csv(
         }
         if difficulty != "easy" && difficulty != "medium" && difficulty != "hard" {
             failed += 1;
-            errors.push(ImportError { row, reason: format!("difficulty must be easy, medium, or hard (got '{}')", fields.get(8).unwrap_or(&"")) });
+            errors.push(ImportError { row, reason: format!("difficulty must be easy, medium, or hard (got '{}')", difficulty) });
             continue;
         }
+
+        let subject_label = if subject_name.is_empty() { "General" } else { subject_name };
+
+        let subject_id = {
+            if has_exam_type {
+                let existing = sqlx::query_scalar::<_, String>(
+                    "SELECT id FROM subjects WHERE name = ? AND exam_id = (SELECT id FROM exams WHERE slug = ? LIMIT 1)",
+                )
+                .bind(subject_label)
+                .bind(exam_type)
+                .fetch_optional(&data.db)
+                .await;
+
+                match existing {
+                    Ok(Some(id)) => id,
+                    _ => {
+                        let new_id = Uuid::new_v4().to_string();
+                        let exam_id = sqlx::query_scalar::<_, String>(
+                            "SELECT id FROM exams WHERE slug = ? LIMIT 1",
+                        )
+                        .bind(exam_type)
+                        .fetch_optional(&data.db)
+                        .await
+                        .ok()
+                        .flatten();
+
+                        let exam_id_str = exam_id.unwrap_or_default();
+                        let now = Utc::now().naive_utc();
+                        let _ = sqlx::query(
+                            "INSERT OR IGNORE INTO subjects (id, exam_id, name, slug, is_active, created_at) VALUES (?, ?, ?, ?, 1, ?)",
+                        )
+                        .bind(&new_id)
+                        .bind(&exam_id_str)
+                        .bind(subject_label)
+                        .bind(slugify(subject_label))
+                        .bind(now)
+                        .execute(&data.db)
+                        .await;
+                        new_id
+                    }
+                }
+            } else {
+                let existing = sqlx::query_scalar::<_, String>(
+                    "SELECT id FROM subjects WHERE id = ? OR name = ? LIMIT 1",
+                )
+                .bind(subject_label)
+                .bind(subject_label)
+                .fetch_optional(&data.db)
+                .await;
+
+                match existing {
+                    Ok(Some(id)) => id,
+                    _ => {
+                        failed += 1;
+                        errors.push(ImportError { row, reason: format!("Subject '{}' not found. Create it first or use the subject name/ID.", subject_label) });
+                        continue;
+                    }
+                }
+            }
+        };
+
+        let resolved_exam_type = if has_exam_type {
+            exam_type.to_string()
+        } else {
+            let sub_exam = sqlx::query_scalar::<_, String>(
+                "SELECT e.slug FROM exams e INNER JOIN subjects s ON s.exam_id = e.id WHERE s.id = ? LIMIT 1",
+            )
+            .bind(&subject_id)
+            .fetch_optional(&data.db)
+            .await
+            .ok()
+            .flatten()
+            .unwrap_or_default();
+            sub_exam
+        };
 
         let id = Uuid::new_v4().to_string();
         let now = Utc::now().naive_utc();
 
         let result = sqlx::query(
-            "INSERT INTO questions (id, subject_id, exam_type, question_text, option_a, option_b, option_c, option_d, correct_answer, explanation, difficulty, is_active, created_at, updated_at) VALUES (?, '', ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?)",
+            "INSERT INTO questions (id, subject_id, exam_type, question_text, option_a, option_b, option_c, option_d, correct_answer, explanation, difficulty, is_active, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?)",
         )
         .bind(&id)
-        .bind(exam_type)
+        .bind(&subject_id)
+        .bind(&resolved_exam_type)
         .bind(question_text)
         .bind(option_a)
         .bind(option_b)
@@ -1474,6 +1826,146 @@ pub async fn import_questions_csv(
 
     HttpResponse::Ok().json(ImportResult {
         total: (lines.len() - 1) as u32,
+        success,
+        failed,
+        errors,
+    })
+}
+
+// ---------------------------------------------------------------------------
+// 25b. Import topics CSV
+// ---------------------------------------------------------------------------
+
+#[derive(Debug, Deserialize)]
+pub struct ImportTopicsCsvRequest {
+    pub csv: String,
+    pub subject_id: String,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct ImportTopicsJsonRequest {
+    pub topics: Vec<serde_json::Value>,
+    pub subject_id: String,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ImportTopicsResult {
+    pub total: u32,
+    pub success: u32,
+    pub failed: u32,
+    pub errors: Vec<ImportError>,
+}
+
+pub async fn import_topics_csv(
+    data: web::Data<AppState>,
+    body: web::Json<ImportTopicsCsvRequest>,
+) -> HttpResponse {
+    let csv_data = body.csv.trim();
+    let lines: Vec<&str> = csv_data.lines().collect();
+    if lines.len() < 2 {
+        return HttpResponse::BadRequest().json(serde_json::json!({
+            "error": "CSV must have a header row and at least one data row"
+        }));
+    }
+
+    let mut success: u32 = 0;
+    let mut failed: u32 = 0;
+    let mut errors: Vec<ImportError> = Vec::new();
+
+    for (idx, line) in lines.iter().enumerate().skip(1) {
+        let row = (idx + 1) as u32;
+        let fields: Vec<&str> = line.split(',').map(|f| f.trim().trim_matches('"')).collect();
+        if fields.is_empty() {
+            failed += 1;
+            errors.push(ImportError { row, reason: "Empty row".into() });
+            continue;
+        }
+
+        let name = fields[0].trim();
+        if name.is_empty() {
+            failed += 1;
+            errors.push(ImportError { row, reason: "Topic name is required".into() });
+            continue;
+        }
+
+        let id = Uuid::new_v4().to_string();
+        let now = Utc::now().naive_utc();
+        let slug = slugify(name);
+
+        let result = sqlx::query(
+            "INSERT OR IGNORE INTO topics (id, subject_id, name, slug, is_active, created_at) VALUES (?, ?, ?, ?, 1, ?)",
+        )
+        .bind(&id)
+        .bind(&body.subject_id)
+        .bind(name)
+        .bind(&slug)
+        .bind(now)
+        .execute(&data.db)
+        .await;
+
+        match result {
+            Ok(_) => success += 1,
+            Err(e) => {
+                failed += 1;
+                errors.push(ImportError { row, reason: e.to_string() });
+            }
+        }
+    }
+
+    HttpResponse::Ok().json(ImportTopicsResult {
+        total: (lines.len() - 1) as u32,
+        success,
+        failed,
+        errors,
+    })
+}
+
+pub async fn import_topics_json(
+    data: web::Data<AppState>,
+    body: web::Json<ImportTopicsJsonRequest>,
+) -> HttpResponse {
+    let mut success: u32 = 0;
+    let mut failed: u32 = 0;
+    let mut errors: Vec<ImportError> = Vec::new();
+
+    for (idx, item) in body.topics.iter().enumerate() {
+        let row = (idx + 1) as u32;
+
+        let name = item.get("name").and_then(|v| v.as_str()).unwrap_or("").trim();
+        if name.is_empty() {
+            failed += 1;
+            errors.push(ImportError { row, reason: "Topic name is required".into() });
+            continue;
+        }
+
+        let id = Uuid::new_v4().to_string();
+        let now = Utc::now().naive_utc();
+        let slug = slugify(name);
+
+        let result = sqlx::query(
+            "INSERT OR IGNORE INTO topics (id, subject_id, name, slug, is_active, created_at) VALUES (?, ?, ?, ?, 1, ?)",
+        )
+        .bind(&id)
+        .bind(&body.subject_id)
+        .bind(name)
+        .bind(&slug)
+        .bind(now)
+        .execute(&data.db)
+        .await;
+
+        match result {
+            Ok(_) => success += 1,
+            Err(e) => {
+                failed += 1;
+                errors.push(ImportError { row, reason: e.to_string() });
+            }
+        }
+    }
+
+    log::info!("Topic import: {} succeeded, {} failed", success, failed);
+
+    HttpResponse::Ok().json(ImportTopicsResult {
+        total: body.topics.len() as u32,
         success,
         failed,
         errors,
