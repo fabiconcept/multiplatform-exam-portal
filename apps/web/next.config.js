@@ -5,6 +5,8 @@ const nextConfig = {
   images: {
     remotePatterns: [
       { protocol: 'https', hostname: '**.example.com' },
+      { protocol: 'https', hostname: 'cdn-icons-png.flaticon.com' },
+      { protocol: 'https', hostname: '**.flaticon.com' },
     ],
   },
   async headers() {
@@ -25,7 +27,7 @@ const nextConfig = {
               "default-src 'self'",
               "script-src 'self' 'unsafe-eval' 'unsafe-inline'",
               "style-src 'self' 'unsafe-inline'",
-              "img-src 'self' data: blob:",
+              "img-src 'self' data: blob: https://cdn-icons-png.flaticon.com https://*.flaticon.com",
               "font-src 'self'",
               "connect-src 'self'",
               "frame-ancestors 'none'",
