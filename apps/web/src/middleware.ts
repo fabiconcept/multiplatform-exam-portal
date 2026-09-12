@@ -17,7 +17,7 @@ export function middleware(_request: NextRequest) {
     "style-src 'self' 'unsafe-inline'",
     "img-src 'self' data: blob:",
     "font-src 'self'",
-    "connect-src 'self' http://127.0.0.1:8080 http://localhost:8080",
+    "connect-src 'self' ws: wss: http://127.0.0.1:8080 http://localhost:8080",
     "frame-ancestors 'none'",
     "base-uri 'self'",
     "form-action 'self'",

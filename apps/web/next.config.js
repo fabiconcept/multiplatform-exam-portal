@@ -29,7 +29,7 @@ const nextConfig = {
               "style-src 'self' 'unsafe-inline'",
               "img-src 'self' data: blob: https://cdn-icons-png.flaticon.com https://*.flaticon.com",
               "font-src 'self'",
-              "connect-src 'self'",
+              "connect-src 'self' ws: wss: http://127.0.0.1:8080 http://localhost:8080",
               "frame-ancestors 'none'",
               "base-uri 'self'",
               "form-action 'self'",
