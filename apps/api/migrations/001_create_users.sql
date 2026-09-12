@@ -7,7 +7,7 @@ CREATE TABLE IF NOT EXISTS users (
     school TEXT,
     target_exam TEXT,
     target_score TEXT,
-    is_active BOOLEAN NOT NULL DEFAULT 1,
+    is_active BOOLEAN NOT NULL DEFAULT 0,
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
 );

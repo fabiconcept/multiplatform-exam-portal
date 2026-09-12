@@ -4,6 +4,7 @@ use chrono::Utc;
 use jsonwebtoken::{decode, encode, DecodingKey, EncodingKey, Header, Validation};
 use rand::Rng;
 use serde::{Deserialize, Serialize};
+use sqlx::Row;
 use uuid::Uuid;
 
 use crate::models::admin::*;
@@ -532,7 +533,7 @@ pub async fn unban_user(
     let now = Utc::now().naive_utc();
 
     let result = sqlx::query(
-        "UPDATE users SET is_banned = 0, ban_reason = NULL, is_active = 1, updated_at = ? WHERE id = ?",
+        "UPDATE users SET is_banned = 0, ban_reason = NULL, updated_at = ? WHERE id = ?",
     )
     .bind(now)
     .bind(&user_id)
@@ -2277,6 +2278,35 @@ pub async fn dashboard_stats(data: web::Data<AppState>) -> HttpResponse {
     .await
     .unwrap_or(0);
 
+    // Financial stats
+    let total_revenue = sqlx::query_scalar::<_, i64>(
+        "SELECT COALESCE(SUM(amount), 0) FROM payments WHERE status = 'success'",
+    )
+    .fetch_one(&data.db)
+    .await
+    .unwrap_or(0);
+
+    let successful_payments = sqlx::query_scalar::<_, i64>(
+        "SELECT COUNT(*) FROM payments WHERE status = 'success'",
+    )
+    .fetch_one(&data.db)
+    .await
+    .unwrap_or(0);
+
+    let pending_payments = sqlx::query_scalar::<_, i64>(
+        "SELECT COUNT(*) FROM payments WHERE status = 'pending'",
+    )
+    .fetch_one(&data.db)
+    .await
+    .unwrap_or(0);
+
+    let revenue_today = sqlx::query_scalar::<_, i64>(
+        "SELECT COALESCE(SUM(amount), 0) FROM payments WHERE status = 'success' AND date(created_at) = date('now')",
+    )
+    .fetch_one(&data.db)
+    .await
+    .unwrap_or(0);
+
     HttpResponse::Ok().json(DashboardStats {
         total_users,
         new_users_today,
@@ -2286,6 +2316,10 @@ pub async fn dashboard_stats(data: web::Data<AppState>) -> HttpResponse {
         total_keys,
         used_keys,
         active_users,
+        total_revenue,
+        successful_payments,
+        pending_payments,
+        revenue_today,
     })
 }
 
@@ -2339,6 +2373,140 @@ pub async fn list_audit_log(
             HttpResponse::InternalServerError().json(serde_json::json!({
                 "error": "Internal server error"
             }))
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// 20. Finance — list payments with user info
+// ---------------------------------------------------------------------------
+
+#[derive(Debug, Serialize)]
+pub struct FinancePayment {
+    pub id: String,
+    pub user_id: String,
+    pub user_name: String,
+    pub user_email: String,
+    pub amount: i64,
+    pub currency: String,
+    pub status: String,
+    pub reference: String,
+    pub created_at: String,
+    pub updated_at: String,
+}
+
+#[derive(Debug, Serialize)]
+pub struct FinanceResponse {
+    pub payments: Vec<FinancePayment>,
+    pub total: i64,
+    pub page: u32,
+    pub limit: u32,
+    pub total_revenue: i64,
+    pub successful_count: i64,
+    pub pending_count: i64,
+    pub failed_count: i64,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct FinanceParams {
+    pub page: Option<u32>,
+    pub limit: Option<u32>,
+    pub status: Option<String>,
+    pub search: Option<String>,
+}
+
+pub async fn list_payments(
+    req: HttpRequest,
+    data: web::Data<AppState>,
+    query: web::Query<FinanceParams>,
+) -> HttpResponse {
+    let admin_id = match extract_admin_id(&req, &data.config.jwt_secret) {
+        Some(id) => id,
+        None => return HttpResponse::Unauthorized().json(serde_json::json!({"error": "Unauthorized"})),
+    };
+
+    let page = query.page.unwrap_or(1).max(1);
+    let limit = query.limit.unwrap_or(20).min(100);
+    let offset = ((page - 1) * limit) as i64;
+    let status_filter = query.status.as_deref().unwrap_or("");
+    let search_filter = query.search.as_deref().unwrap_or("");
+
+    let total = sqlx::query_scalar::<_, i64>(
+        "SELECT COUNT(*) FROM payments p LEFT JOIN users u ON p.user_id = u.id WHERE (? = '' OR p.status = ?) AND (? = '' OR u.name LIKE '%' || ? || '%' OR u.email LIKE '%' || ? || '%' OR p.reference LIKE '%' || ? || '%')"
+    )
+    .bind(status_filter)
+    .bind(status_filter)
+    .bind(search_filter)
+    .bind(search_filter)
+    .bind(search_filter)
+    .bind(search_filter)
+    .fetch_one(&data.db)
+    .await
+    .unwrap_or(0);
+
+    let rows = sqlx::query(
+        "SELECT p.id, p.user_id, COALESCE(u.name, '') as user_name, COALESCE(u.email, '') as user_email, p.amount, p.currency, p.status, p.reference, p.created_at, p.updated_at FROM payments p LEFT JOIN users u ON p.user_id = u.id WHERE (? = '' OR p.status = ?) AND (? = '' OR u.name LIKE '%' || ? || '%' OR u.email LIKE '%' || ? || '%' OR p.reference LIKE '%' || ? || '%') ORDER BY p.created_at DESC LIMIT ? OFFSET ?"
+    )
+    .bind(status_filter)
+    .bind(status_filter)
+    .bind(search_filter)
+    .bind(search_filter)
+    .bind(search_filter)
+    .bind(search_filter)
+    .bind(limit as i64)
+    .bind(offset)
+    .fetch_all(&data.db)
+    .await;
+
+    // Summary stats
+    let total_revenue: i64 = sqlx::query_scalar("SELECT COALESCE(SUM(amount), 0) FROM payments WHERE status = 'success'")
+        .fetch_one(&data.db)
+        .await
+        .unwrap_or(0);
+    let successful_count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM payments WHERE status = 'success'")
+        .fetch_one(&data.db)
+        .await
+        .unwrap_or(0);
+    let pending_count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM payments WHERE status = 'pending'")
+        .fetch_one(&data.db)
+        .await
+        .unwrap_or(0);
+    let failed_count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM payments WHERE status = 'failed'")
+        .fetch_one(&data.db)
+        .await
+        .unwrap_or(0);
+
+    match rows {
+        Ok(rows) => {
+            let payments = rows.into_iter().map(|row| {
+                FinancePayment {
+                    id: row.get(0),
+                    user_id: row.get(1),
+                    user_name: row.get(2),
+                    user_email: row.get(3),
+                    amount: row.get(4),
+                    currency: row.get(5),
+                    status: row.get(6),
+                    reference: row.get(7),
+                    created_at: row.get(8),
+                    updated_at: row.get(9),
+                }
+            }).collect();
+
+            HttpResponse::Ok().json(FinanceResponse {
+                payments,
+                total,
+                page,
+                limit,
+                total_revenue,
+                successful_count,
+                pending_count,
+                failed_count,
+            })
+        }
+        Err(e) => {
+            log::error!("List payments error: {}", e);
+            HttpResponse::InternalServerError().json(serde_json::json!({"error": "Internal server error"}))
         }
     }
 }
