@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import Image from 'next/image';
 import Navbar from '@/components/landing/Navbar';
 import Footer from '@/components/landing/Footer';
 
@@ -94,7 +95,7 @@ export default function ExamsPage() {
                   className={`group bg-white rounded-3xl p-8 border-2 ${colors.border} ${colors.hover} hover:shadow-xl transition-all duration-300`}
                 >
                   <div className="w-16 h-16 rounded-2xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform overflow-hidden">
-                    <img src={exam.image} alt={exam.name} className="w-14 h-14 object-contain" />
+                    <Image src={exam.image} alt={exam.name} width={56} height={56} className="object-contain" />
                   </div>
                   <h2 className="text-2xl font-bold text-neutral-900 mb-2">{exam.name}</h2>
                   <p className="text-sm text-neutral-500 mb-4">{exam.fullName}</p>

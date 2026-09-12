@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import Image from 'next/image';
 import Navbar from '@/components/landing/Navbar';
 import Footer from '@/components/landing/Footer';
 
@@ -92,7 +93,7 @@ export default function JAMBPage() {
                 </Link>
                 <div className="flex items-center gap-4 mb-6">
                   <div className="w-16 h-16 rounded-2xl flex items-center justify-center overflow-hidden">
-                    <img src="/images/jamb.webp" alt="JAMB Logo" className="w-14 h-14 object-contain" />
+                    <Image src="/images/jamb.webp" alt="JAMB Logo" width={56} height={56} className="object-contain" />
                   </div>
                   <h1 className="text-4xl md:text-5xl lg:text-6xl font-display font-bold text-neutral-900">
                     JAMB / UTME
@@ -137,7 +138,7 @@ export default function JAMBPage() {
                     <p className="text-neutral-600 mt-1">Students</p>
                   </div>
                   <div className="bg-white rounded-3xl p-6 text-center shadow-xl relative overflow-hidden">
-                    <img src="/images/jamb.webp" alt="" className="absolute -bottom-4 -right-4 w-24 h-24 object-contain opacity-10" />
+                    <Image src="/images/jamb.webp" alt="" width={96} height={96} className="absolute -bottom-4 -right-4 object-contain opacity-10" />
                     <p className="text-4xl font-bold text-warning-500">100%</p>
                     <p className="text-neutral-600 mt-1">Offline</p>
                   </div>
