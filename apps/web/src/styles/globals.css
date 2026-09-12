@@ -69,6 +69,250 @@
   h1, h2, h3, h4, h5, h6 {
     @apply font-display font-bold text-neutral-900;
   }
+
+  /* Skip to content link */
+  .skip-link {
+    @apply fixed -top-full left-4 z-[100] px-6 py-3 bg-neutral-900 text-white font-semibold rounded-b-xl transition-all duration-200;
+  }
+  .skip-link:focus {
+    @apply top-0;
+  }
+
+  /* Visible focus ring for keyboard navigation */
+  :focus-visible {
+    @apply outline-2 outline-offset-2 outline-primary-500;
+  }
+
+  /* Remove focus ring for mouse users */
+  :focus:not(:focus-visible) {
+    @apply outline-none;
+  }
+
+  /* High contrast focus for buttons and links */
+  button:focus-visible,
+  a:focus-visible,
+  input:focus-visible,
+  select:focus-visible,
+  textarea:focus-visible {
+    @apply outline-2 outline-offset-2 outline-primary-500 ring-0;
+  }
+
+  /* Reduced motion preference */
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      @apply !duration-0 !transition-none;
+      animation: none !important;
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      scroll-behavior: auto !important;
+    }
+  }
+
+  /* Screen reader only utility */
+  .sr-only {
+    @apply absolute w-px h-px p-0 -m-px overflow-hidden whitespace-nowrap;
+    clip: rect(0, 0, 0, 0);
+    border: 0;
+  }
+}
+
+/* ─── Dark Mode ────────────────────────────────────────────────────────── */
+@layer base {
+  .dark {
+    --background: #1a1a2e;
+    --foreground: #e8e8e8;
+    --card: #232340;
+    --card-foreground: #e8e8e8;
+    --popover: #232340;
+    --popover-foreground: #e8e8e8;
+    --primary: #F5C518;
+    --primary-foreground: #1a1a2e;
+    --secondary: #2a2a4a;
+    --secondary-foreground: #e8e8e8;
+    --muted: #2a2a4a;
+    --muted-foreground: #a0a0b8;
+    --accent: #FF6B35;
+    --accent-foreground: #ffffff;
+    --destructive: #FF3333;
+    --destructive-foreground: #ffffff;
+    --border: #333355;
+    --input: #333355;
+    --ring: #F5C518;
+  }
+
+  .dark body {
+    @apply bg-[#1a1a2e] text-gray-200;
+  }
+
+  .dark h1, .dark h2, .dark h3, .dark h4, .dark h5, .dark h6 {
+    @apply text-gray-100;
+  }
+}
+
+@layer components {
+  .dark .bg-white {
+    @apply bg-[#232340];
+  }
+
+  .dark .bg-neutral-50 {
+    @apply bg-[#2a2a4a];
+  }
+
+  .dark .bg-neutral-100 {
+    @apply bg-[#2a2a4a];
+  }
+
+  .dark .text-neutral-900 {
+    @apply text-gray-100;
+  }
+
+  .dark .text-neutral-800 {
+    @apply text-gray-200;
+  }
+
+  .dark .text-neutral-700 {
+    @apply text-gray-300;
+  }
+
+  .dark .text-neutral-600 {
+    @apply text-gray-400;
+  }
+
+  .dark .text-neutral-500 {
+    @apply text-gray-500;
+  }
+
+  .dark .border-neutral-200 {
+    @apply border-[#333355];
+  }
+
+  .dark .border-neutral-100 {
+    @apply border-[#333355];
+  }
+
+  .dark .hover\:bg-neutral-50:hover {
+    @apply bg-[#2a2a4a];
+  }
+
+  .dark .hover\:bg-neutral-100:hover {
+    @apply bg-[#2e2e50];
+  }
+
+  .dark .bg-background-100 {
+    @apply bg-[#1a1a2e];
+  }
+
+  .dark .shadow-sm {
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+  }
+
+  .dark input, .dark select, .dark textarea {
+    @apply bg-[#2a2a4a] border-[#333355] text-gray-200;
+  }
+
+  .dark input::placeholder, .dark textarea::placeholder {
+    @apply text-gray-500;
+  }
+
+  .dark .bg-primary-100 {
+    @apply bg-primary-500/20;
+  }
+
+  .dark .bg-success-100 {
+    @apply bg-success-500/20;
+  }
+
+  .dark .bg-warning-100 {
+    @apply bg-warning-500/20;
+  }
+
+  .dark .bg-error-100 {
+    @apply bg-error-500/20;
+  }
+
+  .dark .bg-blue-50 {
+    @apply bg-blue-500/10;
+  }
+
+  .dark .bg-blue-100 {
+    @apply bg-blue-500/20;
+  }
+
+  .dark .text-primary-700 {
+    @apply text-primary-400;
+  }
+
+  .dark .text-success-700 {
+    @apply text-success-400;
+  }
+
+  .dark .text-warning-700 {
+    @apply text-warning-400;
+  }
+
+  .dark .text-error-700 {
+    @apply text-error-400;
+  }
+
+  .dark .text-blue-800 {
+    @apply text-blue-300;
+  }
+
+  .dark .border-primary-200 {
+    @apply border-primary-500/30;
+  }
+
+  .dark .border-success-200 {
+    @apply border-success-500/30;
+  }
+
+  .dark .border-warning-200 {
+    @apply border-warning-500/30;
+  }
+
+  .dark .border-error-200 {
+    @apply border-error-500/30;
+  }
+
+  .dark .border-blue-200 {
+    @apply border-blue-500/30;
+  }
+
+  .dark .divide-neutral-100 > :not([hidden]) ~ :not([hidden]) {
+    @apply border-[#333355];
+  }
+
+  .dark .bg-success-50 {
+    @apply bg-success-500/10;
+  }
+
+  .dark .bg-error-50 {
+    @apply bg-error-500/10;
+  }
+
+  .dark .bg-primary-50 {
+    @apply bg-primary-500/10;
+  }
+
+  .dark .hover\:bg-primary-50:hover {
+    @apply bg-primary-500/20;
+  }
+
+  .dark .hover\:bg-error-50:hover {
+    @apply bg-error-500/20;
+  }
+
+  .dark .bg-neutral-800 {
+    @apply bg-[#1e1e38];
+  }
+
+  .dark .bg-neutral-900 {
+    @apply bg-[#16162a];
+  }
+
+  .dark .text-white {
+    @apply text-gray-100;
+  }
 }
 
 @layer components {

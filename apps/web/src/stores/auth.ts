@@ -2,6 +2,17 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { authApi, ApiError, type User } from '@/lib/api';
 
+function setCookie(name: string, value: string, days: number) {
+  if (typeof document === 'undefined') return;
+  const expires = new Date(Date.now() + days * 864e5).toUTCString();
+  document.cookie = `${name}=${encodeURIComponent(value)}; expires=${expires}; path=/; SameSite=Lax`;
+}
+
+function removeCookie(name: string) {
+  if (typeof document === 'undefined') return;
+  document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/`;
+}
+
 interface AuthState {
   user: User | null;
   token: string | null;
@@ -27,6 +38,7 @@ export const useAuthStore = create<AuthState>()(
         set({ isLoading: true, error: null });
         try {
           const { token, user } = await authApi.login({ email, password, device_info: deviceInfo });
+          setCookie('token', token, 30);
           set({ user, token, isLoading: false });
           return true;
         } catch (err) {
@@ -40,6 +52,7 @@ export const useAuthStore = create<AuthState>()(
         set({ isLoading: true, error: null });
         try {
           const { token, user } = await authApi.register(data);
+          setCookie('token', token, 30);
           set({ user, token, isLoading: false });
           return true;
         } catch (err) {
@@ -50,6 +63,7 @@ export const useAuthStore = create<AuthState>()(
       },
 
       logout: () => {
+        removeCookie('token');
         set({ user: null, token: null, error: null });
       },
 
@@ -60,8 +74,10 @@ export const useAuthStore = create<AuthState>()(
         set({ isLoading: true });
         try {
           const user = await authApi.me(token);
+          setCookie('token', token, 30);
           set({ user, isLoading: false });
         } catch (e) {
+          removeCookie('token');
           set({ user: null, token: null, isLoading: false });
         }
       },

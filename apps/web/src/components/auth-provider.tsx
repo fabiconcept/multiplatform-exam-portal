@@ -19,6 +19,11 @@ export function useAuth() {
   return useContext(AuthContext);
 }
 
+function setCookie(name: string, value: string, days: number) {
+  const expires = new Date(Date.now() + days * 864e5).toUTCString();
+  document.cookie = `${name}=${encodeURIComponent(value)}; expires=${expires}; path=/; SameSite=Lax`;
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const { user, token, isLoading, loadUser } = useAuthStore();
   const [hydrated, setHydrated] = useState(false);
@@ -30,12 +35,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!hydrated) return;
 
-    if (token && !user) {
-      loadUser();
-    } else if (!token && isLoading) {
-      useAuthStore.setState({ isLoading: false });
+    if (token) {
+      setCookie('token', token, 30);
+      if (!user) {
+        loadUser();
+      }
+    } else {
+      const hasCookie = document.cookie.split(';').some(c => c.trim().startsWith('token='));
+      if (!hasCookie) {
+        useAuthStore.setState({ isLoading: false });
+      }
     }
-  }, [hydrated, token, user, loadUser, isLoading]);
+  }, [hydrated, token, user, loadUser]);
 
   return (
     <AuthContext.Provider

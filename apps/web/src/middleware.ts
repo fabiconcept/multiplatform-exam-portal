@@ -24,21 +24,21 @@ export function middleware(_request: NextRequest) {
   ].join('; ');
   response.headers.set('Content-Security-Policy', csp);
 
-  // TODO: Enable auth protection below
-  // const pathname = request.nextUrl.pathname;
-  // const publicPaths = ['/login', '/register'];
-  // const isPublic = publicPaths.some((p) => pathname === p) || 
-  //   pathname.startsWith('/_next') || 
-  //   pathname.startsWith('/api/auth');
+  const pathname = _request.nextUrl.pathname;
+  const publicPaths = ['/login', '/register', '/forgot-password', '/reset-password', '/verify-email', '/check-email'];
+  const publicPrefixes = ['/_next', '/api', '/exams', '/images'];
+  const isPublic = publicPaths.some((p) => pathname === p) ||
+    publicPrefixes.some((p) => pathname.startsWith(p)) ||
+    pathname === '/';
 
-  // if (!isPublic) {
-  //   const token = request.cookies.get('access_token')?.value;
-  //   if (!token) {
-  //     const loginUrl = new URL('/login', request.url);
-  //     loginUrl.searchParams.set('redirect', pathname);
-  //     return NextResponse.redirect(loginUrl);
-  //   }
-  // }
+  if (!isPublic) {
+    const token = _request.cookies.get('token')?.value;
+    if (!token) {
+      const loginUrl = new URL('/login', _request.url);
+      loginUrl.searchParams.set('redirect', pathname);
+      return NextResponse.redirect(loginUrl);
+    }
+  }
 
   return response;
 }

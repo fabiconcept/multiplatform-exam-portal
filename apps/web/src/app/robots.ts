@@ -1,14 +1,14 @@
-import { MetadataRoute } from 'next';
+import type { MetadataRoute } from 'next';
+
+const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'https://examscholars.com';
 
 export default function robots(): MetadataRoute.Robots {
-  const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'https://fabicbt.com';
-
   return {
     rules: [
       {
         userAgent: '*',
         allow: '/',
-        disallow: ['/admin/', '/api/', '/auth/'],
+        disallow: ['/dashboard/', '/api/', '/login', '/register'],
       },
     ],
     sitemap: `${SITE_URL}/sitemap.xml`,
