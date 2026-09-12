@@ -49,11 +49,19 @@ export default function ContactPage() {
     subject: '',
     message: '',
   });
+  const [submitting, setSubmitting] = useState(false);
+  const [submitted, setSubmitted] = useState(false);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    // Handle form submission
-    console.log('Form submitted:', formData);
+    setSubmitting(true);
+    // Build mailto link as fallback (no contact API endpoint exists)
+    const mailtoUrl = `mailto:support@examscholars.com?subject=${encodeURIComponent(`[Contact] ${formData.subject}`)}&body=${encodeURIComponent(`Name: ${formData.name}\nEmail: ${formData.email}\n\n${formData.message}`)}`;
+    window.location.href = mailtoUrl;
+    setTimeout(() => {
+      setSubmitting(false);
+      setSubmitted(true);
+    }, 1000);
   };
 
   return (
@@ -113,72 +121,101 @@ export default function ContactPage() {
             {/* Contact Form */}
             <div className="lg:col-span-2">
               <div className="bg-white rounded-3xl p-8 md:p-10 shadow-lg">
-                <h2 className="text-2xl font-bold mb-6">Send us a message</h2>
-                <form onSubmit={handleSubmit} className="space-y-6">
-                  <div className="grid md:grid-cols-2 gap-6">
-                    <div>
-                      <label htmlFor="name" className="block text-sm font-medium text-neutral-700 mb-2">
-                        Your name
-                      </label>
-                      <input
-                        type="text"
-                        id="name"
-                        value={formData.name}
-                        onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                        className="input"
-                        placeholder="Enter your name"
-                        required
-                      />
+                {submitted ? (
+                  <div className="text-center py-12">
+                    <div className="w-16 h-16 bg-success-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                      <svg className="w-8 h-8 text-success-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                      </svg>
                     </div>
-                    <div>
-                      <label htmlFor="email" className="block text-sm font-medium text-neutral-700 mb-2">
-                        Email address
-                      </label>
-                      <input
-                        type="email"
-                        id="email"
-                        value={formData.email}
-                        onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                        className="input"
-                        placeholder="Enter your email"
-                        required
-                      />
-                    </div>
+                    <h2 className="text-2xl font-bold text-neutral-900 mb-2">Message Sent!</h2>
+                    <p className="text-neutral-500 mb-6">
+                      Your email client should have opened. If not, you can reach us directly at{' '}
+                      <a href="mailto:support@examscholars.com" className="text-accent-500 font-medium">support@examscholars.com</a>
+                    </p>
+                    <button
+                      onClick={() => { setSubmitted(false); setFormData({ name: '', email: '', subject: '', message: '' }); }}
+                      className="px-6 py-3 border-2 border-neutral-200 rounded-full font-medium text-neutral-700 hover:bg-neutral-50 transition-all"
+                    >
+                      Send another message
+                    </button>
                   </div>
-                  <div>
-                    <label htmlFor="subject" className="block text-sm font-medium text-neutral-700 mb-2">
-                      Subject
-                    </label>
-                    <input
-                      type="text"
-                      id="subject"
-                      value={formData.subject}
-                      onChange={(e) => setFormData({ ...formData, subject: e.target.value })}
-                      className="input"
-                      placeholder="What is this about?"
-                      required
-                    />
-                  </div>
-                  <div>
-                    <label htmlFor="message" className="block text-sm font-medium text-neutral-700 mb-2">
-                      Message
-                    </label>
-                    <textarea
-                      id="message"
-                      value={formData.message}
-                      onChange={(e) => setFormData({ ...formData, message: e.target.value })}
-                      className="input min-h-[150px] resize-none"
-                      placeholder="Tell us how we can help..."
-                      required
-                    />
-                  </div>
-                  <button
-                    type="submit"
-                    className="w-full py-4 bg-accent-500 text-white font-semibold rounded-full hover:bg-accent-600 hover:shadow-xl hover:shadow-accent-500/25 active:scale-[0.98] transition-all duration-200"
-                  >
-                    Send message
-                  </button>
-                </form>
+                ) : (
+                  <>
+                    <h2 className="text-2xl font-bold mb-6">Send us a message</h2>
+                    <form onSubmit={handleSubmit} className="space-y-6">
+                      <div className="grid md:grid-cols-2 gap-6">
+                        <div>
+                          <label htmlFor="name" className="block text-sm font-medium text-neutral-700 mb-2">
+                            Your name
+                          </label>
+                          <input
+                            type="text"
+                            id="name"
+                            value={formData.name}
+                            onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                            className="input"
+                            placeholder="Enter your name"
+                            required
+                          />
+                        </div>
+                        <div>
+                          <label htmlFor="email" className="block text-sm font-medium text-neutral-700 mb-2">
+                            Email address
+                          </label>
+                          <input
+                            type="email"
+                            id="email"
+                            value={formData.email}
+                            onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                            className="input"
+                            placeholder="Enter your email"
+                            required
+                          />
+                        </div>
+                      </div>
+                      <div>
+                        <label htmlFor="subject" className="block text-sm font-medium text-neutral-700 mb-2">
+                          Subject
+                        </label>
+                        <input
+                          type="text"
+                          id="subject"
+                          value={formData.subject}
+                          onChange={(e) => setFormData({ ...formData, subject: e.target.value })}
+                          className="input"
+                          placeholder="What is this about?"
+                          required
+                        />
+                      </div>
+                      <div>
+                        <label htmlFor="message" className="block text-sm font-medium text-neutral-700 mb-2">
+                          Message
+                        </label>
+                        <textarea
+                          id="message"
+                          value={formData.message}
+                          onChange={(e) => setFormData({ ...formData, message: e.target.value })}
+                          className="input min-h-[150px] resize-none"
+                          placeholder="Tell us how we can help..."
+                          required
+                        />
+                      </div>
+                      <button
+                        type="submit"
+                        disabled={submitting}
+                        className="w-full py-4 bg-accent-500 text-white font-semibold rounded-full hover:bg-accent-600 hover:shadow-xl hover:shadow-accent-500/25 active:scale-[0.98] transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        {submitting ? (
+                          <span className="inline-flex items-center gap-2">
+                            <span className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                            Sending...
+                          </span>
+                        ) : 'Send message'}
+                      </button>
+                    </form>
+                  </>
+                )}
               </div>
             </div>
           </div>

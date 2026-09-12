@@ -81,25 +81,45 @@ export default function ProfilePage() {
 
   const examOptions = ['JAMB/UTME', 'WAEC/SSCE', 'Post-UTME', 'BECE', 'NCEE'];
 
+  if (!user) {
+    return (
+      <div className="p-4 lg:p-8">
+        <div className="animate-pulse space-y-6">
+          <div className="h-8 w-48 bg-neutral-200 rounded-lg mb-2" />
+          <div className="h-4 w-64 bg-neutral-100 rounded" />
+          <div className="bg-white rounded-2xl p-6 shadow-sm">
+            <div className="flex items-center gap-6">
+              <div className="w-24 h-24 bg-neutral-200 rounded-full" />
+              <div className="flex-1 space-y-3">
+                <div className="h-6 w-48 bg-neutral-200 rounded" />
+                <div className="h-4 w-32 bg-neutral-100 rounded" />
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className="p-8">
+    <div className="p-4 lg:p-8">
       <div className="mb-8">
-        <h1 className="text-3xl font-bold text-neutral-900 mb-2">Profile</h1>
+        <h1 className="text-2xl lg:text-3xl font-bold text-neutral-900 mb-2">Profile</h1>
         <p className="text-neutral-600">Manage your account settings</p>
       </div>
 
       {/* Profile Header */}
-      <div className="bg-white rounded-2xl p-6 shadow-sm mb-6">
-        <div className="flex items-center gap-6">
-          <div className="relative">
-            <div className="w-24 h-24 bg-primary-100 rounded-full flex items-center justify-center">
-              <span className="text-3xl font-bold text-primary-600">{userInitials}</span>
+      <div className="bg-white rounded-2xl p-4 lg:p-6 shadow-sm mb-6">
+        <div className="flex flex-col sm:flex-row items-center gap-4 lg:gap-6">
+          <div className="relative shrink-0">
+            <div className="w-20 h-20 lg:w-24 lg:h-24 bg-primary-100 rounded-full flex items-center justify-center">
+              <span className="text-2xl lg:text-3xl font-bold text-primary-600">{userInitials}</span>
             </div>
           </div>
-          <div className="flex-1">
-            <h2 className="text-2xl font-bold text-neutral-900">{user?.name || 'Student'}</h2>
-            <p className="text-neutral-500">{user?.email}</p>
-            <div className="flex gap-2 mt-2">
+          <div className="flex-1 text-center sm:text-left min-w-0">
+            <h2 className="text-xl lg:text-2xl font-bold text-neutral-900">{user?.name || 'Student'}</h2>
+            <p className="text-neutral-500 truncate">{user?.email}</p>
+            <div className="flex gap-2 mt-2 justify-center sm:justify-start flex-wrap">
               <span className="text-xs px-3 py-1 bg-primary-100 text-primary-700 rounded-full font-medium">
                 {user?.target_exam || 'No exam selected'}
               </span>
@@ -137,9 +157,9 @@ export default function ProfilePage() {
       </div>
 
       {/* Personal Info */}
-      <div className="bg-white rounded-2xl p-6 shadow-sm mb-6">
+      <div className="bg-white rounded-2xl p-4 lg:p-6 shadow-sm mb-6">
         <h3 className="text-lg font-semibold text-neutral-900 mb-4">Personal Information</h3>
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
             <label className="block text-sm font-medium text-neutral-700 mb-1">Full Name</label>
             <input
@@ -225,7 +245,12 @@ export default function ProfilePage() {
               disabled={saving}
               className="px-6 py-3 bg-neutral-900 text-white rounded-full font-semibold hover:bg-neutral-800 transition-all disabled:opacity-50"
             >
-              {saving ? 'Saving...' : 'Save Changes'}
+              {saving ? (
+                <span className="inline-flex items-center gap-2">
+                  <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  Saving...
+                </span>
+              ) : 'Save Changes'}
             </button>
           </div>
         )}
@@ -271,7 +296,12 @@ export default function ProfilePage() {
               disabled={changingPassword || !passwords.current_password || !passwords.new_password}
               className="px-6 py-3 bg-neutral-900 text-white rounded-full font-semibold hover:bg-neutral-800 transition-all disabled:opacity-50"
             >
-              {changingPassword ? 'Updating...' : 'Update Password'}
+              {changingPassword ? (
+                <span className="inline-flex items-center gap-2">
+                  <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  Updating...
+                </span>
+              ) : 'Update Password'}
             </button>
           </div>
         </div>

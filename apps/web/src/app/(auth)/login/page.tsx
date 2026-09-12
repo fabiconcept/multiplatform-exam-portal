@@ -70,7 +70,7 @@ function LoginForm() {
 
       if (success) {
         showToast.success('Welcome back!', `Signed in from ${getDeviceType()}`);
-        setTimeout(() => router.push(redirect), 1000);
+        router.push(redirect);
       } else {
         const message = authError || 'Invalid email or password. Please try again.';
         showToast.error('Login failed', message);

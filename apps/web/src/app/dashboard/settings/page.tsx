@@ -4,11 +4,13 @@ import { useState, useEffect } from 'react';
 import toast from 'react-hot-toast';
 import { authApi, type UserSettings } from '@/lib/api';
 import { useAuthStore } from '@/stores/auth';
+import { useDarkMode } from '@/hooks/use-dark-mode';
 
 export default function SettingsPage() {
   const { token } = useAuthStore();
   const [settings, setSettings] = useState<UserSettings | null>(null);
   const [loading, setLoading] = useState(true);
+  const { toggle: toggleDark } = useDarkMode();
 
   useEffect(() => {
     if (!token) return;
@@ -58,14 +60,14 @@ export default function SettingsPage() {
   );
 
   return (
-    <div className="p-8">
+    <div className="p-4 lg:p-8">
       <div className="mb-8">
-        <h1 className="text-3xl font-bold text-neutral-900 mb-2">Settings</h1>
+        <h1 className="text-2xl lg:text-3xl font-bold text-neutral-900 mb-2">Settings</h1>
         <p className="text-neutral-600">Customize your exam preparation experience</p>
       </div>
 
       {/* Notifications */}
-      <div className="bg-white rounded-2xl p-6 shadow-sm mb-6">
+      <div className="bg-white rounded-2xl p-4 lg:p-6 shadow-sm mb-6">
         <h2 className="text-lg font-semibold text-neutral-900 mb-4">Notifications</h2>
         <div className="space-y-4">
           <div className="flex items-center justify-between">
@@ -86,7 +88,7 @@ export default function SettingsPage() {
       </div>
 
       {/* Practice Settings */}
-      <div className="bg-white rounded-2xl p-6 shadow-sm mb-6">
+      <div className="bg-white rounded-2xl p-4 lg:p-6 shadow-sm mb-6">
         <h2 className="text-lg font-semibold text-neutral-900 mb-4">Practice Settings</h2>
         <div className="space-y-4">
           <div className="flex items-center justify-between">
@@ -121,19 +123,19 @@ export default function SettingsPage() {
       </div>
 
       {/* Appearance */}
-      <div className="bg-white rounded-2xl p-6 shadow-sm mb-6">
+      <div className="bg-white rounded-2xl p-4 lg:p-6 shadow-sm mb-6">
         <h2 className="text-lg font-semibold text-neutral-900 mb-4">Appearance</h2>
         <div className="flex items-center justify-between">
           <div>
             <p className="font-medium text-neutral-900">Dark Mode</p>
             <p className="text-sm text-neutral-500">Switch to dark theme</p>
           </div>
-          <Toggle enabled={settings.dark_mode} onClick={() => toggleSetting('dark_mode')} />
+          <Toggle enabled={settings.dark_mode} onClick={() => { toggleSetting('dark_mode'); toggleDark(); }} />
         </div>
       </div>
 
       {/* Data */}
-      <div className="bg-white rounded-2xl p-6 shadow-sm">
+      <div className="bg-white rounded-2xl p-4 lg:p-6 shadow-sm">
         <h2 className="text-lg font-semibold text-neutral-900 mb-4">Data & Storage</h2>
         <div className="space-y-3">
           <button className="w-full flex items-center justify-between p-4 bg-neutral-50 rounded-xl hover:bg-neutral-100 transition-colors">
