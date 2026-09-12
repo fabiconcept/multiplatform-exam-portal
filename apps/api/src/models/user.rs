@@ -14,6 +14,8 @@ pub struct User {
     pub target_exam: Option<String>,
     pub target_score: Option<String>,
     pub is_active: bool,
+    pub is_banned: bool,
+    pub ban_reason: Option<String>,
     pub role: String,
     pub created_at: NaiveDateTime,
     pub updated_at: NaiveDateTime,
@@ -52,6 +54,8 @@ pub struct UserResponse {
     pub target_exam: Option<String>,
     pub target_score: Option<String>,
     pub is_active: bool,
+    pub is_banned: bool,
+    pub ban_reason: Option<String>,
     pub role: String,
 }
 
@@ -66,6 +70,8 @@ impl From<User> for UserResponse {
             target_exam: user.target_exam,
             target_score: user.target_score,
             is_active: user.is_active,
+            is_banned: user.is_banned,
+            ban_reason: user.ban_reason,
             role: user.role,
         }
     }
@@ -178,4 +184,169 @@ pub struct UsageStatusResponse {
     pub limit: i64,
     pub remaining: i64,
     pub is_activated: bool,
+}
+
+// ---------------------------------------------------------------------------
+// Exam Sessions
+// ---------------------------------------------------------------------------
+
+#[derive(Debug, Serialize, FromRow)]
+pub struct ExamSession {
+    pub id: String,
+    pub user_id: String,
+    pub exam_type: String,
+    pub mode: String,
+    pub subjects: String,
+    pub question_count: i32,
+    pub duration_minutes: i32,
+    pub status: String,
+    pub started_at: NaiveDateTime,
+    pub completed_at: Option<NaiveDateTime>,
+    pub expires_at: Option<NaiveDateTime>,
+    pub score: Option<f64>,
+    pub total_correct: Option<i32>,
+    pub total_answered: Option<i32>,
+    pub time_spent_seconds: Option<i32>,
+    pub question_order: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct CreateSessionRequest {
+    pub exam_type: String,
+    pub mode: Option<String>,
+    pub subjects: Option<Vec<String>>,
+    pub question_count: Option<i32>,
+    pub duration_minutes: Option<i32>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct SessionResponse {
+    pub session: ExamSession,
+    pub questions: Vec<SessionQuestion>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct SessionQuestion {
+    pub id: String,
+    pub question_text: String,
+    pub option_a: String,
+    pub option_b: String,
+    pub option_c: String,
+    pub option_d: String,
+    pub explanation: Option<String>,
+    pub correct_answer: String,
+    pub subject_name: Option<String>,
+    pub topic_name: Option<String>,
+    pub difficulty: String,
+    pub user_answer: Option<String>,
+    pub is_correct: Option<bool>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct SubmitAnswerRequest {
+    pub question_id: String,
+    pub selected_answer: String,
+    pub time_spent_seconds: Option<i32>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct SubmitAllRequest {
+    pub answers: Vec<SubmitAnswerRequest>,
+    pub time_spent_seconds: Option<i32>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct SessionResult {
+    pub session: ExamSession,
+    pub total_correct: i32,
+    pub total_answered: i32,
+    pub score: f64,
+    pub by_subject: Vec<SubjectResult>,
+    pub by_difficulty: Vec<DifficultyResult>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct SubjectResult {
+    pub subject_name: String,
+    pub correct: i64,
+    pub total: i64,
+    pub percentage: f64,
+}
+
+#[derive(Debug, Serialize)]
+pub struct DifficultyResult {
+    pub difficulty: String,
+    pub correct: i64,
+    pub total: i64,
+    pub percentage: f64,
+}
+
+#[derive(Debug, Serialize, FromRow)]
+pub struct ExamAnswer {
+    pub id: String,
+    pub session_id: String,
+    pub question_id: String,
+    pub selected_answer: Option<String>,
+    pub is_correct: Option<bool>,
+    pub time_spent_seconds: Option<i32>,
+    pub answered_at: NaiveDateTime,
+}
+
+// ---------------------------------------------------------------------------
+// Bookmarks
+// ---------------------------------------------------------------------------
+
+#[derive(Debug, Serialize, FromRow)]
+pub struct Bookmark {
+    pub id: String,
+    pub user_id: String,
+    pub question_id: String,
+    pub created_at: NaiveDateTime,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct CreateBookmarkRequest {
+    pub question_id: String,
+}
+
+#[derive(Debug, Serialize, FromRow)]
+pub struct BookmarkedQuestion {
+    pub id: String,
+    pub question_id: String,
+    pub question_text: String,
+    pub exam_type: String,
+    pub subject_name: Option<String>,
+    pub difficulty: String,
+    pub created_at: NaiveDateTime,
+}
+
+// ---------------------------------------------------------------------------
+// User Stats
+// ---------------------------------------------------------------------------
+
+#[derive(Debug, Serialize)]
+pub struct UserStats {
+    pub total_answered: i64,
+    pub total_correct: i64,
+    pub avg_score: f64,
+    pub study_streak: i64,
+    pub study_time_hours: f64,
+    pub total_sessions: i64,
+    pub bookmark_count: i64,
+}
+
+// ---------------------------------------------------------------------------
+// Activation
+// ---------------------------------------------------------------------------
+
+#[derive(Debug, Deserialize)]
+pub struct ActivateRequest {
+    pub key_code: String,
+}
+
+#[derive(Debug, Serialize)]
+pub struct ActivationResponse {
+    pub message: String,
+    pub exam_type: Option<String>,
+    pub activated_at: String,
 }
