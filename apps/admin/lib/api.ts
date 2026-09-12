@@ -27,9 +27,9 @@ export async function api<T = unknown>(endpoint: string, options: { method?: str
   return data as T;
 }
 
-export type AdminUser = { id: string; name: string; email: string; phone?: string; school?: string; target_exam?: string; target_score?: string; is_active: boolean; role: string; created_at?: string; };
+export type AdminUser = { id: string; name: string; email: string; phone?: string; school?: string; target_exam?: string; target_score?: string; is_active: boolean; is_banned: boolean; ban_reason?: string; role: string; created_at?: string; };
 export type ActivationKey = { id: string; key_code: string; exam_type: string; max_uses: number; used_count: number; created_by: string; created_at: string; expires_at?: string; is_active: boolean; };
-export type Exam = { id: string; name: string; slug: string; description?: string; total_questions: number; time_limit_minutes: number; is_active: boolean; icon_url?: string; created_at: string; subject_count?: number; question_count?: number; };
+export type Exam = { id: string; name: string; slug: string; description?: string; total_questions: number; time_limit_minutes: number; min_subjects: number; max_subjects: number; is_active: boolean; icon_url?: string; created_at: string; subject_count?: number; question_count?: number; };
 export type Subject = { id: string; exam_id: string; name: string; slug: string; description?: string; is_active: boolean; created_at: string; };
 export type Topic = { id: string; subject_id: string; name: string; slug: string; is_active: boolean; created_at: string; };
 export type Question = { id: string; subject_id: string; topic_id?: string; exam_type: string; question_text: string; option_a: string; option_b: string; option_c: string; option_d: string; correct_answer: string; explanation?: string; difficulty: string; is_active: boolean; created_at: string; updated_at: string; };
@@ -56,6 +56,8 @@ export const adminApi = {
   getUser: (token: string, id: string) => api<AdminUser>(`/admin/users/${id}`, { token }),
   updateUser: (token: string, id: string, body: Partial<AdminUser>) => api<AdminUser>(`/admin/users/${id}`, { method: 'PUT', body, token }),
   deleteUser: (token: string, id: string) => api<{ message: string }>(`/admin/users/${id}`, { method: 'DELETE', token }),
+  banUser: (token: string, id: string, reason: string) => api<{ message: string }>(`/admin/users/${id}/ban`, { method: 'POST', body: { reason }, token }),
+  unbanUser: (token: string, id: string) => api<{ message: string }>(`/admin/users/${id}/unban`, { method: 'POST', token }),
   resetPassword: (token: string, id: string) => api<{ message: string; temp_password: string }>(`/admin/users/${id}/reset-password`, { method: 'POST', token }),
   
   listKeys: (token: string, params?: { page?: number; limit?: number; exam_type?: string }) => {
@@ -71,13 +73,19 @@ export const adminApi = {
   keyStats: (token: string) => api<{ total: number; used: number; unused: number; expired: number }>('/admin/keys/stats', { token }),
   
   listExams: (token: string) => api<{ exams: Exam[]; total: number }>('/admin/exams', { token }),
-  createExam: (token: string, body: { name: string; description?: string; total_questions?: number; time_limit_minutes?: number; icon_url?: string }) => api<Exam>('/admin/exams', { method: 'POST', body, token }),
+  createExam: (token: string, body: { name: string; description?: string; total_questions?: number; time_limit_minutes?: number; icon_url?: string; min_subjects?: number; max_subjects?: number }) => api<Exam>('/admin/exams', { method: 'POST', body, token }),
   updateExam: (token: string, id: string, body: Partial<Exam>) => api<Exam>(`/admin/exams/${id}`, { method: 'PUT', body, token }),
   deleteExam: (token: string, id: string) => api<{ message: string }>(`/admin/exams/${id}`, { method: 'DELETE', token }),
   listSubjects: (token: string, examId: string) => api<{ subjects: Subject[]; total: number }>(`/admin/exams/${examId}/subjects`, { token }),
   createSubject: (token: string, examId: string, body: { name: string; description?: string }) => api<Subject>(`/admin/exams/${examId}/subjects`, { method: 'POST', body, token }),
+  updateSubject: (token: string, id: string, body: { name: string; description?: string }) => api<Subject>(`/admin/subjects/${id}`, { method: 'PUT', body, token }),
+  deleteSubject: (token: string, id: string) => api<{ message: string }>(`/admin/subjects/${id}`, { method: 'DELETE', token }),
   createTopic: (token: string, subjectId: string, body: { name: string }) => api<Topic>(`/admin/subjects/${subjectId}/topics`, { method: 'POST', body, token }),
   listTopics: (token: string, subjectId: string) => api<{ topics: Topic[]; total: number }>(`/admin/subjects/${subjectId}/topics`, { token }),
+  updateTopic: (token: string, id: string, body: { name: string }) => api<Topic>(`/admin/topics/${id}`, { method: 'PUT', body, token }),
+  deleteTopic: (token: string, id: string) => api<{ message: string }>(`/admin/topics/${id}`, { method: 'DELETE', token }),
+  importTopicsCsv: (token: string, body: { csv: string; subject_id: string }) => api<{ total: number; success: number; failed: number; errors: { row: number; reason: string }[] }>('/admin/topics/import/csv', { method: 'POST', body, token }),
+  importTopicsJson: (token: string, body: { topics: Record<string, unknown>[]; subject_id: string }) => api<{ total: number; success: number; failed: number; errors: { row: number; reason: string }[] }>('/admin/topics/import/json', { method: 'POST', body, token }),
   
   listQuestions: (token: string, params?: { page?: number; limit?: number; exam_type?: string; subject_id?: string; difficulty?: string; search?: string }) => {
     const q = new URLSearchParams();

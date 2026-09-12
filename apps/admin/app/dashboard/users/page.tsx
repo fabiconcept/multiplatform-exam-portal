@@ -13,10 +13,13 @@ import {
   Trash2,
   Power,
   PowerOff,
+  RotateCcw,
   Pencil,
   Eye,
   KeyRound,
   Users,
+  Ban,
+  CheckCircle,
 } from 'lucide-react';
 import {
   Table,
@@ -80,6 +83,9 @@ export default function UsersPage() {
   const [deleteConfirm, setDeleteConfirm] = useState<AdminUser | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [bulkActionLoading, setBulkActionLoading] = useState(false);
+  const [banModal, setBanModal] = useState<AdminUser | null>(null);
+  const [banReason, setBanReason] = useState('');
+  const [banning, setBanning] = useState(false);
   const totalPages = Math.ceil(total / pageSize);
 
   useEffect(() => {
@@ -187,6 +193,36 @@ export default function UsersPage() {
       fetchUsers();
     } catch {
       toast.error('Failed to update user');
+    }
+  }
+
+  async function handleBan() {
+    if (!banModal || !banReason.trim()) return;
+    if (admin && banModal.id === admin.id) {
+      toast.error("You cannot ban yourself");
+      return;
+    }
+    setBanning(true);
+    try {
+      await adminApi.banUser(token!, banModal.id, banReason.trim());
+      toast.success('User banned');
+      setBanModal(null);
+      setBanReason('');
+      fetchUsers();
+    } catch {
+      toast.error('Failed to ban user');
+    } finally {
+      setBanning(false);
+    }
+  }
+
+  async function handleUnban(user: AdminUser) {
+    try {
+      await adminApi.unbanUser(token!, user.id);
+      toast.success('User unbanned');
+      fetchUsers();
+    } catch {
+      toast.error('Failed to unban user');
     }
   }
 
@@ -467,9 +503,18 @@ export default function UsersPage() {
                           </Badge>
                         </TableCell>
                         <TableCell>
-                          <Badge variant={user.is_active ? 'default' : 'destructive'}>
-                            {user.is_active ? 'Active' : 'Inactive'}
-                          </Badge>
+                          {user.is_banned ? (
+                            <Badge variant="destructive" className="flex items-center gap-1">
+                              <Ban className="h-3 w-3" />
+                              Banned
+                            </Badge>
+                          ) : user.is_active ? (
+                            <Badge variant="default" className="flex items-center gap-1 bg-emerald-600">
+                              Premium
+                            </Badge>
+                          ) : (
+                            <Badge variant="secondary">Free</Badge>
+                          )}
                         </TableCell>
                         <TableCell className="text-sm text-muted-foreground">
                           {formatDate(user.created_at)}
@@ -503,17 +548,40 @@ export default function UsersPage() {
                                   isSelf
                                     ? 'cursor-not-allowed text-muted-foreground/30'
                                     : user.is_active
-                                      ? 'text-destructive hover:bg-destructive/10 hover:text-destructive'
+                                      ? 'text-amber-600 hover:bg-amber-50 hover:text-amber-700'
                                       : 'text-emerald-600 hover:bg-emerald-50 hover:text-emerald-700'
                                 )}
                                 disabled={isSelf}
                                 onClick={() => handleToggleActive(user)}
-                                title={isSelf ? "Can't deactivate yourself" : user.is_active ? 'Deactivate' : 'Activate'}
+                                title={isSelf ? "Can't deactivate yourself" : user.is_active ? 'Deactivate (revoke premium)' : 'Activate (grant premium)'}
                               >
                                 {user.is_active ? (
                                   <PowerOff className="h-4 w-4" />
                                 ) : (
-                                  <Power className="h-4 w-4" />
+                                  <RotateCcw className="h-4 w-4" />
+                                )}
+                              </Button>
+                            </div>
+                            <div className="relative">
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className={cn(
+                                  'h-8 w-8',
+                                  isSelf
+                                    ? 'cursor-not-allowed text-muted-foreground/30'
+                                    : user.is_banned
+                                      ? 'text-emerald-600 hover:bg-emerald-50 hover:text-emerald-700'
+                                      : 'text-orange-600 hover:bg-orange-50 hover:text-orange-700'
+                                )}
+                                disabled={isSelf}
+                                onClick={() => user.is_banned ? handleUnban(user) : setBanModal(user)}
+                                title={isSelf ? "Can't ban yourself" : user.is_banned ? 'Unban user' : 'Ban user'}
+                              >
+                                {user.is_banned ? (
+                                  <CheckCircle className="h-4 w-4" />
+                                ) : (
+                                  <Ban className="h-4 w-4" />
                                 )}
                               </Button>
                             </div>
@@ -723,7 +791,7 @@ export default function UsersPage() {
                   </Select>
                 </div>
                 <div className="space-y-2">
-                  <Label>Status</Label>
+                  <Label>Access Level</Label>
                   <Select
                     value={editForm.is_active ? 'true' : 'false'}
                     onValueChange={(v) => setEditForm({ ...editForm, is_active: v === 'true' })}
@@ -737,12 +805,12 @@ export default function UsersPage() {
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="true">Active</SelectItem>
-                      <SelectItem value="false">Inactive</SelectItem>
+                      <SelectItem value="true">Premium (unlimited)</SelectItem>
+                      <SelectItem value="false">Free (limited)</SelectItem>
                     </SelectContent>
                   </Select>
                   {admin?.id === editUser.id && (
-                    <p className="text-xs text-amber-600">Cannot deactivate your own account</p>
+                    <p className="text-xs text-amber-600">Cannot change your own access level</p>
                   )}
                 </div>
               </div>
@@ -810,13 +878,26 @@ export default function UsersPage() {
 
       {/* Delete Confirmation Dialog */}
       <Dialog open={!!deleteConfirm} onOpenChange={(open) => !open && setDeleteConfirm(null)}>
-        <DialogContent className="sm:max-w-sm">
+        <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Delete User</DialogTitle>
-            <DialogDescription>
-              Are you sure you want to delete{' '}
-              <span className="font-semibold text-foreground">{deleteConfirm?.name}</span>? This
-              action cannot be undone.
+            <DialogTitle>Delete User Permanently</DialogTitle>
+            <DialogDescription asChild>
+              <div className="space-y-3">
+                <p>
+                  Are you sure you want to permanently delete{' '}
+                  <span className="font-semibold text-foreground">{deleteConfirm?.name}</span>?
+                </p>
+                <div className="rounded-lg bg-amber-50 p-3 text-sm text-amber-800 dark:bg-amber-950 dark:text-amber-200">
+                  <p className="font-medium mb-1">Deactivation vs Deletion:</p>
+                  <ul className="list-disc list-inside space-y-1 text-xs">
+                    <li><strong>Deactivate</strong> — User cannot log in but data is preserved. You can restore access anytime.</li>
+                    <li><strong>Delete</strong> — All user data is permanently removed. This cannot be undone.</li>
+                  </ul>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Consider deactivating instead if you might need to restore this account later.
+                </p>
+              </div>
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
@@ -824,7 +905,40 @@ export default function UsersPage() {
               Cancel
             </Button>
             <Button variant="destructive" onClick={() => deleteConfirm && handleDeleteUser(deleteConfirm)} disabled={deleting}>
-              {deleting ? 'Deleting...' : 'Delete'}
+              {deleting ? 'Deleting...' : 'Delete Permanently'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Ban User Dialog */}
+      <Dialog open={!!banModal} onOpenChange={(open) => !open && setBanModal(null)}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Ban className="h-5 w-5 text-orange-600" />
+              Ban User
+            </DialogTitle>
+            <DialogDescription>
+              This will prevent <span className="font-semibold text-foreground">{banModal?.name}</span> from logging in or accessing any feature.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2">
+            <Label htmlFor="ban-reason">Reason for ban</Label>
+            <Input
+              id="ban-reason"
+              placeholder="e.g. Violation of terms of service..."
+              value={banReason}
+              onChange={(e) => setBanReason(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && handleBan()}
+            />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { setBanModal(null); setBanReason(''); }}>
+              Cancel
+            </Button>
+            <Button variant="destructive" onClick={handleBan} disabled={!banReason.trim() || banning}>
+              {banning ? 'Banning...' : 'Ban User'}
             </Button>
           </DialogFooter>
         </DialogContent>
