@@ -18,7 +18,7 @@ impl Config {
                 .parse()
                 .unwrap_or(86400),
             resend_api_key: env::var("RESEND_API_KEY").unwrap_or_default(),
-            email_from: env::var("EMAIL_FROM").unwrap_or_else(|_| "ExamScholars <onboarding@resend.dev>".to_string()),
+            email_from: env::var("EMAIL_FROM").unwrap_or_else(|_| "Examinery <onboarding@resend.dev>".to_string()),
             frontend_url: env::var("FRONTEND_URL").unwrap_or_else(|_| "http://localhost:3001".to_string()),
         }
     }

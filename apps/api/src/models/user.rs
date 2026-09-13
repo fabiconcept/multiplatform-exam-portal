@@ -57,6 +57,7 @@ pub struct UserResponse {
     pub is_banned: bool,
     pub ban_reason: Option<String>,
     pub role: String,
+    pub email_verified: bool,
 }
 
 impl From<User> for UserResponse {
@@ -73,7 +74,24 @@ impl From<User> for UserResponse {
             is_banned: user.is_banned,
             ban_reason: user.ban_reason,
             role: user.role,
+            email_verified: false,
         }
+    }
+}
+
+impl UserResponse {
+    pub async fn from_user_with_verification(user: User, db: &sqlx::SqlitePool) -> Self {
+        let verified = sqlx::query_scalar::<_, bool>(
+            "SELECT EXISTS(SELECT 1 FROM email_verifications WHERE user_id = ? AND verified = 1)"
+        )
+        .bind(&user.id)
+        .fetch_one(db)
+        .await
+        .unwrap_or(false);
+
+        let mut resp = Self::from(user);
+        resp.email_verified = verified;
+        resp
     }
 }
 
@@ -349,4 +367,54 @@ pub struct ActivationResponse {
     pub message: String,
     pub exam_type: Option<String>,
     pub activated_at: String,
+}
+
+// ---------------------------------------------------------------------------
+// Payments
+// ---------------------------------------------------------------------------
+
+#[derive(Debug, Serialize, Deserialize, sqlx::FromRow)]
+pub struct Payment {
+    pub id: String,
+    pub user_id: String,
+    pub amount: i64,
+    pub currency: String,
+    pub status: String,
+    pub reference: String,
+    pub payment_url: Option<String>,
+    pub metadata: Option<String>,
+    pub created_at: String,
+    pub updated_at: String,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct InitPaymentRequest {
+    pub amount: Option<i64>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct InitPaymentResponse {
+    pub id: String,
+    pub reference: String,
+    pub amount: i64,
+    pub currency: String,
+    pub status: String,
+    pub payment_url: String,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct VerifyPaymentRequest {
+    pub reference: String,
+}
+
+#[derive(Debug, Serialize)]
+pub struct VerifyPaymentResponse {
+    pub id: String,
+    pub reference: String,
+    pub status: String,
+    pub amount: i64,
+    pub currency: String,
+    pub activated: bool,
+    pub message: String,
+    pub key_code: Option<String>,
 }
