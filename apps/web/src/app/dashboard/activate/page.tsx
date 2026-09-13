@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useAuthStore } from '@/stores/auth';
-import { authApi } from '@/lib/api';
+import { authApi, paymentApi } from '@/lib/api';
 import { useRouter } from 'next/navigation';
 import toast from 'react-hot-toast';
 
@@ -15,15 +15,20 @@ export default function ActivatePage() {
   const [step, setStep] = useState<'select' | 'payment' | 'done'>('select');
 
   const isActivated = user?.is_active;
+  const isBanned = user?.is_banned;
 
   useEffect(() => {
     if (isActivated) {
       toast.error('Your account is already activated.');
       router.replace('/dashboard');
     }
-  }, [isActivated, router]);
+    if (isBanned) {
+      toast.error('Your account has been banned.');
+      router.replace('/dashboard');
+    }
+  }, [isActivated, isBanned, router]);
 
-  if (isActivated) return null;
+  if (isActivated || isBanned) return null;
 
   async function handleRedeem() {
     if (!token || !key.trim()) return;
@@ -125,7 +130,7 @@ export default function ActivatePage() {
               </div>
               <div className="flex justify-between text-sm">
                 <span className="text-neutral-500">Account Name</span>
-                <span className="font-medium text-neutral-900">Exam Scholars</span>
+                <span className="font-medium text-neutral-900">Examinery</span>
               </div>
               <div className="flex justify-between text-sm">
                 <span className="text-neutral-500">Account Number</span>
@@ -168,7 +173,7 @@ export default function ActivatePage() {
         <div className="space-y-4">
           {/* Price card */}
           <div className="bg-white rounded-3xl border-2 border-neutral-900 p-6 shadow-sm text-center">
-            <p className="text-xs font-bold text-neutral-400 uppercase tracking-widest mb-3">Exam Scholars Premium</p>
+            <p className="text-xs font-bold text-neutral-400 uppercase tracking-widest mb-3">Examinery Premium</p>
             <div className="flex items-baseline justify-center gap-1 mb-1">
               <span className="text-sm font-semibold text-neutral-500">N</span>
               <span className="text-4xl font-bold text-neutral-900">3,000</span>
@@ -220,10 +225,26 @@ export default function ActivatePage() {
           </div>
 
           <button
-            onClick={() => setStep('payment')}
-            className="w-full py-3.5 bg-[#1a1a2e] text-white font-semibold rounded-2xl hover:bg-[#16162a] transition-all active:scale-[0.98]"
+            onClick={async () => {
+              if (!token) return;
+              setLoading(true);
+              try {
+                const res = await paymentApi.initPayment(token, 300000);
+                window.location.href = res.payment_url;
+              } catch (err: any) {
+                toast.error(err?.message || 'Failed to initialize payment');
+                setLoading(false);
+              }
+            }}
+            disabled={loading}
+            className="w-full py-3.5 bg-[#1a1a2e] text-white font-semibold rounded-2xl hover:bg-[#16162a] transition-all active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed"
           >
-            Proceed to Payment
+            {loading ? (
+              <span className="inline-flex items-center gap-2">
+                <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                Initializing...
+              </span>
+            ) : 'Proceed to Payment'}
           </button>
 
           <p className="text-xs text-center text-neutral-400">

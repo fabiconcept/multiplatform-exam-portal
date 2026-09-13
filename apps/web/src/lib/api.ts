@@ -95,6 +95,29 @@ export const authApi = {
     api<{ message: string; user: User }>('/auth/activate', { method: 'POST', body: { key_code: key }, token }),
 };
 
+// ─── Payments ────────────────────────────────────────────────────────────────
+export const paymentApi = {
+  initPayment: (token: string, amount?: number) =>
+    api<{ id: string; reference: string; amount: number; currency: string; status: string; payment_url: string }>(
+      '/auth/payments/init', { method: 'POST', body: { amount }, token }
+    ),
+
+  verifyPayment: (token: string, reference: string) =>
+    api<{ id: string; reference: string; status: string; amount: number; currency: string; activated: boolean; message: string; key_code?: string }>(
+      '/auth/payments/verify', { method: 'POST', body: { reference }, token }
+    ),
+
+  getPaymentStatus: (token: string, reference: string) =>
+    api<{ id: string; reference: string; status: string; amount: number; currency: string }>(
+      `/auth/payments/${reference}`, { token }
+    ),
+
+  getActivationKey: (token: string) =>
+    api<{ key_code: string | null; exam_type?: string; is_used?: boolean; created_at?: string; message?: string }>(
+      '/auth/activation-key', { token }
+    ),
+};
+
 export type User = {
   id: string;
   name: string;
@@ -106,6 +129,8 @@ export type User = {
   is_active: boolean;
   is_banned: boolean;
   ban_reason?: string;
+  role?: string;
+  email_verified: boolean;
 };
 
 export type UserSettings = {
@@ -163,6 +188,17 @@ export const examApi = {
 
   listSubjectTopics: (token: string, subjectId: string) =>
     api<{ topics: Topic[]; total: number }>(`/auth/subjects/${subjectId}/topics`, { token }),
+};
+
+export const publicExamApi = {
+  listExams: () =>
+    api<{ exams: Exam[]; total: number }>('/exams'),
+
+  listExamSubjects: (examId: string) =>
+    api<{ subjects: Subject[]; total: number }>(`/exams/${examId}/subjects`),
+
+  listSubjectTopics: (subjectId: string) =>
+    api<{ topics: Topic[]; total: number }>(`/subjects/${subjectId}/topics`),
 };
 
 // ---------------------------------------------------------------------------
