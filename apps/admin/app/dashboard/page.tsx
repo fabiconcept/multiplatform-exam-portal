@@ -23,6 +23,9 @@ import {
   Settings,
   Upload,
   Plus,
+  DollarSign,
+  CreditCard,
+  Clock3,
 } from 'lucide-react'
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -39,6 +42,10 @@ interface DashboardStats {
   total_keys: number
   used_keys: number
   active_users: number
+  total_revenue: number
+  successful_payments: number
+  pending_payments: number
+  revenue_today: number
 }
 
 function LoadingSkeleton() {
@@ -265,6 +272,96 @@ export default function DashboardPage() {
               <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
                 <Clock className="h-3 w-3" />
                 Since midnight
+              </span>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Financial Metrics Row */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <Card>
+          <CardContent className="p-6">
+            <div className="flex items-center gap-4">
+              <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
+                <DollarSign className="h-5 w-5" />
+              </div>
+              <div className="space-y-1">
+                <p className="text-sm font-medium text-muted-foreground">Total Revenue</p>
+                <p className="text-2xl font-bold tracking-tight">
+                  N{((stats?.total_revenue ?? 0) / 100).toLocaleString()}
+                </p>
+              </div>
+            </div>
+            <div className="mt-4">
+              <span className="inline-flex items-center gap-1 text-xs font-medium text-emerald-600 dark:text-emerald-400">
+                <TrendingUp className="h-3 w-3" />
+                N{((stats?.revenue_today ?? 0) / 100).toLocaleString()} today
+              </span>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="p-6">
+            <div className="flex items-center gap-4">
+              <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-violet-500/10 text-violet-600 dark:text-violet-400">
+                <CreditCard className="h-5 w-5" />
+              </div>
+              <div className="space-y-1">
+                <p className="text-sm font-medium text-muted-foreground">Successful Payments</p>
+                <p className="text-2xl font-bold tracking-tight">{stats?.successful_payments?.toLocaleString() ?? 0}</p>
+              </div>
+            </div>
+            <div className="mt-4">
+              <Link
+                href="/dashboard/payments"
+                className="inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline"
+              >
+                View all payments
+                <ArrowUpRight className="h-3 w-3" />
+              </Link>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="p-6">
+            <div className="flex items-center gap-4">
+              <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-amber-500/10 text-amber-600 dark:text-amber-400">
+                <Clock3 className="h-5 w-5" />
+              </div>
+              <div className="space-y-1">
+                <p className="text-sm font-medium text-muted-foreground">Pending Payments</p>
+                <p className="text-2xl font-bold tracking-tight">{stats?.pending_payments?.toLocaleString() ?? 0}</p>
+              </div>
+            </div>
+            <div className="mt-4">
+              <span className="text-xs text-muted-500">
+                Awaiting verification
+              </span>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="p-6">
+            <div className="flex items-center gap-4">
+              <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-blue-500/10 text-blue-600 dark:text-blue-400">
+                <TrendingUp className="h-5 w-5" />
+              </div>
+              <div className="space-y-1">
+                <p className="text-sm font-medium text-muted-foreground">Avg. Payment</p>
+                <p className="text-2xl font-bold tracking-tight">
+                  N{stats?.successful_payments
+                    ? Math.round((stats.total_revenue ?? 0) / stats.successful_payments / 100).toLocaleString()
+                    : '0'}
+                </p>
+              </div>
+            </div>
+            <div className="mt-4">
+              <span className="text-xs text-muted-500">
+                Per successful transaction
               </span>
             </div>
           </CardContent>

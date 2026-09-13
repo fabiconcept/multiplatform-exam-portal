@@ -132,7 +132,7 @@ export default function AdminDashboardLayout({ children }: { children: React.Rea
                 E
               </div>
               <div>
-                <h1 className="text-[15px] font-bold tracking-tight">ExamScholars</h1>
+                <h1 className="text-[15px] font-bold tracking-tight">Examinery</h1>
                 <span className="text-[11px] font-medium text-gray-400">Admin Panel</span>
               </div>
             </div>

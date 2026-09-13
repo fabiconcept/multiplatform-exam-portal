@@ -339,6 +339,10 @@ pub struct DashboardStats {
     pub total_keys: i64,
     pub used_keys: i64,
     pub active_users: i64,
+    pub total_revenue: i64,
+    pub successful_payments: i64,
+    pub pending_payments: i64,
+    pub revenue_today: i64,
 }
 
 // Audit log

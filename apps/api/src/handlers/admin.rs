@@ -294,12 +294,18 @@ pub async fn list_users(
     let users = data_stmt.fetch_all(&data.db).await;
 
     match users {
-        Ok(users) => HttpResponse::Ok().json(UserListResponse {
-            users: users.into_iter().map(UserResponse::from).collect(),
-            total,
-            page,
-            limit,
-        }),
+        Ok(users) => {
+            let mut user_responses = Vec::new();
+            for u in users {
+                user_responses.push(UserResponse::from_user_with_verification(u, &data.db).await);
+            }
+            HttpResponse::Ok().json(UserListResponse {
+                users: user_responses,
+                total,
+                page,
+                limit,
+            })
+        }
         Err(e) => {
             log::error!("List users error: {}", e);
             HttpResponse::InternalServerError().json(serde_json::json!({
@@ -324,7 +330,10 @@ pub async fn get_user(
         .await;
 
     match user {
-        Ok(Some(u)) => HttpResponse::Ok().json(UserResponse::from(u)),
+        Ok(Some(u)) => {
+            let resp = UserResponse::from_user_with_verification(u, &data.db).await;
+            HttpResponse::Ok().json(resp)
+        }
         Ok(None) => HttpResponse::NotFound().json(serde_json::json!({
             "error": "User not found"
         })),
@@ -397,7 +406,8 @@ pub async fn update_user(
                 .fetch_one(&data.db)
                 .await
                 .unwrap();
-            HttpResponse::Ok().json(UserResponse::from(user))
+            let resp = UserResponse::from_user_with_verification(user, &data.db).await;
+            HttpResponse::Ok().json(resp)
         }
         Err(e) => {
             log::error!("Update user error: {}", e);

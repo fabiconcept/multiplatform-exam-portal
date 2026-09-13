@@ -27,14 +27,16 @@ export async function api<T = unknown>(endpoint: string, options: { method?: str
   return data as T;
 }
 
-export type AdminUser = { id: string; name: string; email: string; phone?: string; school?: string; target_exam?: string; target_score?: string; is_active: boolean; is_banned: boolean; ban_reason?: string; role: string; created_at?: string; };
+export type AdminUser = { id: string; name: string; email: string; phone?: string; school?: string; target_exam?: string; target_score?: string; is_active: boolean; is_banned: boolean; ban_reason?: string; role: string; email_verified: boolean; created_at?: string; };
 export type ActivationKey = { id: string; key_code: string; exam_type: string; max_uses: number; used_count: number; created_by: string; created_at: string; expires_at?: string; is_active: boolean; };
 export type Exam = { id: string; name: string; slug: string; description?: string; total_questions: number; time_limit_minutes: number; min_subjects: number; max_subjects: number; is_active: boolean; icon_url?: string; created_at: string; subject_count?: number; question_count?: number; };
 export type Subject = { id: string; exam_id: string; name: string; slug: string; description?: string; is_active: boolean; created_at: string; };
 export type Topic = { id: string; subject_id: string; name: string; slug: string; is_active: boolean; created_at: string; };
 export type Question = { id: string; subject_id: string; topic_id?: string; exam_type: string; question_text: string; option_a: string; option_b: string; option_c: string; option_d: string; correct_answer: string; explanation?: string; difficulty: string; is_active: boolean; created_at: string; updated_at: string; };
 export type AuditLogEntry = { id: string; admin_id: string; admin_email: string; action: string; target_type: string; target_id?: string; details?: string; ip_address?: string; created_at: string; };
-export type DashboardStats = { total_users: number; new_users_today: number; new_users_week: number; total_questions: number; total_exams: number; total_keys: number; used_keys: number; active_users: number; };
+export type DashboardStats = { total_users: number; new_users_today: number; new_users_week: number; total_questions: number; total_exams: number; total_keys: number; used_keys: number; active_users: number; total_revenue: number; successful_payments: number; pending_payments: number; revenue_today: number; };
+export type FinancePayment = { id: string; user_id: string; user_name: string; user_email: string; amount: number; currency: string; status: string; reference: string; created_at: string; updated_at: string; };
+export type FinanceResponse = { payments: FinancePayment[]; total: number; page: number; limit: number; total_revenue: number; successful_count: number; pending_count: number; failed_count: number; };
 
 export const adminApi = {
   login: (body: { email: string; password: string }) => api<{ token: string; admin: AdminUser }>('/admin/login', { method: 'POST', body }),
@@ -114,5 +116,15 @@ export const adminApi = {
     if (params?.action) q.set('action', params.action);
     const qs = q.toString();
     return api<{ entries: AuditLogEntry[]; total: number; page: number; limit: number }>(`/admin/audit-log${qs ? '?' + qs : ''}`, { token });
+  },
+
+  listPayments: (token: string, params?: { page?: number; limit?: number; status?: string; search?: string }) => {
+    const q = new URLSearchParams();
+    if (params?.page) q.set('page', String(params.page));
+    if (params?.limit) q.set('limit', String(params.limit));
+    if (params?.status) q.set('status', params.status);
+    if (params?.search) q.set('search', params.search);
+    const qs = q.toString();
+    return api<FinanceResponse>(`/admin/finance${qs ? '?' + qs : ''}`, { token });
   },
 };
