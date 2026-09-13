@@ -83,6 +83,7 @@ export default function DashboardPage() {
   const [isVerified, setIsVerified] = useState<boolean | null>(null);
 
   const isActivated = user?.is_active || false;
+  const isBanned = user?.is_banned || false;
   const [showActivationModal, setShowActivationModal] = useState(false);
 
   useEffect(() => {
@@ -137,7 +138,11 @@ export default function DashboardPage() {
           <div className="px-4 py-2 bg-primary-100 rounded-full">
             <span className="text-sm font-medium text-primary-700">{user?.target_exam || 'JAMB/UTME'} Package</span>
           </div>
-          {isActivated ? (
+          {isBanned ? (
+            <div className="px-4 py-2 bg-red-100 rounded-full">
+              <span className="text-sm font-medium text-red-700">Banned</span>
+            </div>
+          ) : isActivated ? (
             <div className="px-4 py-2 bg-success-100 rounded-full">
               <span className="text-sm font-medium text-success-700">Activated ✓</span>
             </div>
@@ -150,12 +155,12 @@ export default function DashboardPage() {
       </div>
 
       {/* Activation Banner */}
-      {!isActivated && (
-        <div className="bg-gradient-to-r from-warning-50 to-warning-100 border border-warning-200 rounded-2xl p-4 lg:p-6 mb-8">
+      {!isActivated && !isBanned && (
+        <div className="bg-gradient-to-r dark:from-warning-50/5 from-warning-50 dark:to-warning-100/5 to-warning-100 border border-warning-200 rounded-2xl p-4 lg:p-6 mb-8">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div className="flex items-center gap-4">
               <div className="w-12 h-12 bg-warning-200 rounded-xl flex items-center justify-center shrink-0">
-                <svg className="w-6 h-6 text-warning-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg className="w-6 h-6 text-black" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
               </div>
@@ -246,7 +251,7 @@ export default function DashboardPage() {
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
             </svg>
           </div>
-          <p className="text-2xl font-bold text-neutral-900">{stats ? `${stats.study_time_hours}h` : '0h'}</p>
+          <p className="text-2xl font-bold text-neutral-900">{stats ? `${Math.round(stats.study_time_hours * 100) / 100}h` : '0h'}</p>
           <p className="text-xs text-neutral-500">Study Time</p>
         </div>
         <div className="bg-white rounded-2xl p-5 shadow-sm">
@@ -354,7 +359,7 @@ export default function DashboardPage() {
           <div className="bg-white rounded-2xl p-5 shadow-sm">
             <div className="flex items-center justify-between mb-3">
               <h3 className="font-semibold text-neutral-900">Study Streak</h3>
-              <span className="text-sm font-bold text-warning-600">{stats?.study_streak || 0} days</span>
+              <span className="text-sm font-bold text-warning-600">{stats?.study_streak || 0} {stats?.study_streak === 1 ? 'day' : 'days'}</span>
             </div>
             <StreakCalendar sessions={sessions} />
             <div className="flex items-center justify-between mt-3 text-xs text-neutral-500">

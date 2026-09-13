@@ -39,7 +39,7 @@ export default function AnalyticsPage() {
 
   if (loading) {
     return (
-      <div className="max-w-4xl mx-auto px-4 py-8">
+      <div className="px-4 py-8">
         <div className="h-8 w-48 bg-neutral-100 rounded-lg animate-pulse mb-8" />
         <div className="grid grid-cols-2 gap-4 mb-8">
           {[1,2,3,4].map(i => (
@@ -51,7 +51,7 @@ export default function AnalyticsPage() {
   }
 
   return (
-    <div className="max-w-4xl mx-auto px-4 py-8">
+    <div className="px-4 py-8">
       <h1 className="text-2xl font-bold text-neutral-900 mb-8">Analytics</h1>
 
       {/* Overview Cards */}
@@ -72,7 +72,7 @@ export default function AnalyticsPage() {
         </div>
         <div className="bg-white rounded-2xl p-5 shadow-sm">
           <p className="text-sm text-neutral-500">Study Streak</p>
-          <p className="text-3xl font-bold text-primary-600 mt-1">{stats?.study_streak || 0} days</p>
+          <p className="text-3xl font-bold text-primary-600 mt-1">{stats?.study_streak || 0} {stats?.study_streak === 1 ? 'day' : 'days'}</p>
         </div>
       </div>
 

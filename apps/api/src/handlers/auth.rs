@@ -317,7 +317,7 @@ async fn send_verification_email(
             <div style="display: inline-block; background: #F5C518; width: 56px; height: 56px; border-radius: 12px; line-height: 56px; font-size: 28px; font-weight: bold; color: #2A241E;">E</div>
         </div>
         <h1 style="color: #2A241E; font-size: 24px; font-weight: 700; text-align: center; margin-bottom: 8px;">Verify your email address</h1>
-        <p style="color: #645646; text-align: center; margin-bottom: 32px;">Hi {}, welcome to ExamScholars! Please verify your email address to get started.</p>
+        <p style="color: #645646; text-align: center; margin-bottom: 32px;">Hi {}, welcome to Examinery! Please verify your email address to get started.</p>
         <div style="text-align: center; margin-bottom: 32px;">
             <a href="{}" style="display: inline-block; background: #2A241E; color: white; padding: 14px 32px; border-radius: 9999px; text-decoration: none; font-weight: 600;">Verify Email Address</a>
         </div>
@@ -330,7 +330,7 @@ async fn send_verification_email(
         user_name, verify_url, verify_url, verify_url
     );
 
-    let email = CreateEmailBaseOptions::new(&config.email_from, [to_email], "Verify your ExamScholars email")
+    let email = CreateEmailBaseOptions::new(&config.email_from, [to_email], "Verify your Examinery email")
         .with_html(&html);
 
     match resend.emails.send(email).await {
@@ -383,7 +383,7 @@ async fn send_password_reset_email(
         user_name, reset_url, reset_url, reset_url
     );
 
-    let email = CreateEmailBaseOptions::new(&config.email_from, [to_email], "Reset your ExamScholars password")
+    let email = CreateEmailBaseOptions::new(&config.email_from, [to_email], "Reset your Examinery password")
         .with_html(&html);
 
     match resend.emails.send(email).await {
@@ -1935,9 +1935,15 @@ pub async fn get_user_stats(
     .await
     .unwrap_or(0);
 
-    // Calculate streak (consecutive days with at least one session)
+    // Calculate streak (consecutive days with at least one answer submitted)
+    // Uses exam_answers instead of exam_sessions so that in-progress / abandoned
+    // sessions that still have saved answers also count toward the streak.
     let study_days = sqlx::query_scalar::<_, String>(
-        "SELECT DISTINCT date(started_at) as day FROM exam_sessions WHERE user_id = ? AND status = 'completed' ORDER BY day DESC",
+        "SELECT DISTINCT date(ea.answered_at) as day
+         FROM exam_answers ea
+         JOIN exam_sessions es ON ea.session_id = es.id
+         WHERE es.user_id = ?
+         ORDER BY day DESC",
     )
     .bind(&user_id)
     .fetch_all(&data.db)
@@ -1951,7 +1957,6 @@ pub async fn get_user_stats(
     for day in &study_days {
         if *day == expected_date {
             streak += 1;
-            // Calculate previous day
             if let Ok(date) = chrono::NaiveDate::parse_from_str(&expected_date, "%Y-%m-%d") {
                 expected_date = (date - chrono::Duration::days(1)).format("%Y-%m-%d").to_string();
             }

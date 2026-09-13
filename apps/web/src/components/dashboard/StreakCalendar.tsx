@@ -6,31 +6,34 @@ interface StreakCalendarProps {
   sessions: { started_at: string; status: string }[];
 }
 
+function toDateStr(utcStr: string): string {
+  const d = new Date(utcStr.replace(' ', 'T') + 'Z');
+  return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}-${String(d.getUTCDate()).padStart(2, '0')}`;
+}
+
 export function StreakCalendar({ sessions }: StreakCalendarProps) {
   const completedDates = useMemo(() => {
     const dates = new Set<string>();
-    sessions
-      .filter(s => s.status === 'completed')
-      .forEach(s => {
-        const d = new Date(s.started_at);
-        dates.add(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`);
-      });
+    sessions.forEach(s => {
+      dates.add(toDateStr(s.started_at));
+    });
     return dates;
   }, [sessions]);
 
   const today = new Date();
+  const todayStr = `${today.getUTCFullYear()}-${String(today.getUTCMonth() + 1).padStart(2, '0')}-${String(today.getUTCDate()).padStart(2, '0')}`;
   const weeks: { date: Date; active: boolean; isToday: boolean }[][] = [];
   let currentWeek: { date: Date; active: boolean; isToday: boolean }[] = [];
 
   const startDate = new Date(today);
-  startDate.setDate(startDate.getDate() - 83);
-  startDate.setDate(startDate.getDate() - startDate.getDay());
+  startDate.setUTCDate(startDate.getUTCDate() - 83);
+  startDate.setUTCDate(startDate.getUTCDate() - startDate.getUTCDay());
 
   for (let i = 0; i < 84; i++) {
     const date = new Date(startDate);
-    date.setDate(date.getDate() + i);
-    const dateStr = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
-    const isToday = date.toDateString() === today.toDateString();
+    date.setUTCDate(date.getUTCDate() + i);
+    const dateStr = `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, '0')}-${String(date.getUTCDate()).padStart(2, '0')}`;
+    const isToday = dateStr === todayStr;
     currentWeek.push({ date, active: completedDates.has(dateStr), isToday });
     if (currentWeek.length === 7) {
       weeks.push(currentWeek);
@@ -63,7 +66,7 @@ export function StreakCalendar({ sessions }: StreakCalendarProps) {
                       ? 'bg-primary-300 ring-1 ring-primary-500'
                       : 'bg-neutral-100 dark:bg-neutral-700'
                 }`}
-                title={day.date.toLocaleDateString('en-NG', { day: 'numeric', month: 'short', year: 'numeric' })}
+                title={day.date.toLocaleDateString('en-NG', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' })}
               />
             ))}
           </div>
