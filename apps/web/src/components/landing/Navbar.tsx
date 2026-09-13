@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { usePathname } from 'next/navigation';
 import { useState, useEffect } from 'react';
 
 const navLinks = [
@@ -12,6 +13,7 @@ const navLinks = [
 ];
 
 export default function Navbar() {
+  const pathname = usePathname();
   const [isOpen, setIsOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
 
@@ -39,21 +41,28 @@ export default function Navbar() {
               <span className="text-xl font-bold text-neutral-900">E</span>
             </div>
             <span className="text-xl font-bold text-neutral-900 font-display tracking-tight">
-              ExamScholars
+              Examinery
             </span>
           </Link>
 
           {/* Desktop Navigation */}
           <div className="hidden lg:flex items-center gap-1">
-            {navLinks.map((link) => (
-              <Link
-                key={link.href}
-                href={link.href}
-                className="px-4 py-2 text-neutral-600 hover:text-neutral-900 font-medium rounded-xl hover:bg-neutral-100/80 transition-all duration-200"
-              >
-                {link.label}
-              </Link>
-            ))}
+            {navLinks.map((link) => {
+              const isActive = link.href === '/' ? pathname === '/' : pathname.startsWith(link.href);
+              return (
+                <Link
+                  key={link.href}
+                  href={link.href}
+                  className={`px-4 py-2 font-medium rounded-xl transition-all duration-200 ${
+                    isActive
+                      ? 'text-primary-600 bg-primary-50'
+                      : 'text-neutral-600 hover:text-neutral-900 hover:bg-neutral-100/80'
+                  }`}
+                >
+                  {link.label}
+                </Link>
+              );
+            })}
           </div>
 
           {/* Desktop CTA */}
@@ -111,16 +120,23 @@ export default function Navbar() {
         >
           <div className="py-4 pb-6 border-t border-neutral-100">
             <div className="flex flex-col gap-1">
-              {navLinks.map((link) => (
-                <Link
-                  key={link.href}
-                  href={link.href}
-                  className="px-4 py-3 text-neutral-700 hover:text-neutral-900 hover:bg-neutral-100 rounded-xl font-medium transition-colors"
-                  onClick={() => setIsOpen(false)}
-                >
-                  {link.label}
-                </Link>
-              ))}
+              {navLinks.map((link) => {
+                const isActive = link.href === '/' ? pathname === '/' : pathname.startsWith(link.href);
+                return (
+                  <Link
+                    key={link.href}
+                    href={link.href}
+                    className={`px-4 py-3 rounded-xl font-medium transition-colors ${
+                      isActive
+                        ? 'text-primary-600 bg-primary-50'
+                        : 'text-neutral-700 hover:text-neutral-900 hover:bg-neutral-100'
+                    }`}
+                    onClick={() => setIsOpen(false)}
+                  >
+                    {link.label}
+                  </Link>
+                );
+              })}
             </div>
             <div className="flex flex-col gap-3 mt-4 px-4">
               <Link

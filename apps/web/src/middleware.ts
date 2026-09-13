@@ -11,21 +11,8 @@ export function middleware(_request: NextRequest) {
   response.headers.set('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
   response.headers.set('X-XSS-Protection', '1; mode=block');
 
-  const csp = [
-    "default-src 'self'",
-    "script-src 'self' 'unsafe-eval' 'unsafe-inline'",
-    "style-src 'self' 'unsafe-inline'",
-    "img-src 'self' data: blob:",
-    "font-src 'self'",
-    "connect-src 'self' ws: wss: http://127.0.0.1:8080 http://localhost:8080",
-    "frame-ancestors 'none'",
-    "base-uri 'self'",
-    "form-action 'self'",
-  ].join('; ');
-  response.headers.set('Content-Security-Policy', csp);
-
   const pathname = _request.nextUrl.pathname;
-  const publicPaths = ['/login', '/register', '/forgot-password', '/reset-password', '/verify-email', '/check-email'];
+  const publicPaths = ['/login', '/register', '/forgot-password', '/reset-password', '/verify-email', '/check-email', '/download', '/pricing', '/contact', '/about', '/blog', '/offline'];
   const publicPrefixes = ['/_next', '/api', '/exams', '/images'];
   const isPublic = publicPaths.some((p) => pathname === p) ||
     publicPrefixes.some((p) => pathname.startsWith(p)) ||
