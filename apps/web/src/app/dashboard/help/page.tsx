@@ -25,7 +25,7 @@ const faqs = [
   },
   {
     question: 'Are the questions up to date?',
-    answer: 'Yes, ExamScholars updates content every year to match the latest exam syllabus and past questions. You get access to questions from recent exam years.',
+    answer: 'Yes, Examinery updates content every year to match the latest exam syllabus and past questions. You get access to questions from recent exam years.',
   },
   {
     question: 'Can I use the calculator during exams?',
@@ -52,7 +52,7 @@ export default function HelpPage() {
     <div className="p-8">
       <div className="mb-8">
         <h1 className="text-3xl font-bold text-neutral-900 mb-2">Help & Support</h1>
-        <p className="text-neutral-600">Get help with using ExamScholars</p>
+        <p className="text-neutral-600">Get help with using Examinery</p>
       </div>
 
       {/* Quick Links */}
@@ -140,7 +140,7 @@ export default function HelpPage() {
         <p className="text-neutral-400 mb-6">Our support team is available to help you</p>
         <div className="flex gap-4">
           <a
-            href="mailto:support@examscholars.com"
+            href="mailto:support@Examinery.com"
             className="px-6 py-3 bg-white text-neutral-900 rounded-full font-semibold hover:bg-white/90 transition-colors"
           >
             Email Support

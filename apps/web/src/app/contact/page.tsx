@@ -7,7 +7,7 @@ import Footer from '@/components/landing/Footer';
 const contactInfo = [
   {
     title: 'Email',
-    value: 'support@examscholars.com',
+    value: 'support@Examinery.com',
     icon: (
       <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
@@ -35,11 +35,11 @@ const contactInfo = [
 ];
 
 const socialLinks = [
-  { name: 'Facebook', href: 'https://www.facebook.com/ExamScholars.CBT.software' },
+  { name: 'Facebook', href: 'https://www.facebook.com/Examinery.CBT.software' },
   { name: 'Twitter', href: 'https://x.com/exam_scholar' },
   { name: 'Instagram', href: 'https://www.instagram.com/exam_scholars_' },
-  { name: 'TikTok', href: 'https://www.tiktok.com/@examscholars' },
-  { name: 'YouTube', href: 'https://www.youtube.com/@examscholars_app' },
+  { name: 'TikTok', href: 'https://www.tiktok.com/@Examinery' },
+  { name: 'YouTube', href: 'https://www.youtube.com/@Examinery_app' },
 ];
 
 export default function ContactPage() {
@@ -56,7 +56,7 @@ export default function ContactPage() {
     e.preventDefault();
     setSubmitting(true);
     // Build mailto link as fallback (no contact API endpoint exists)
-    const mailtoUrl = `mailto:support@examscholars.com?subject=${encodeURIComponent(`[Contact] ${formData.subject}`)}&body=${encodeURIComponent(`Name: ${formData.name}\nEmail: ${formData.email}\n\n${formData.message}`)}`;
+    const mailtoUrl = `mailto:support@Examinery.com?subject=${encodeURIComponent(`[Contact] ${formData.subject}`)}&body=${encodeURIComponent(`Name: ${formData.name}\nEmail: ${formData.email}\n\n${formData.message}`)}`;
     window.location.href = mailtoUrl;
     setTimeout(() => {
       setSubmitting(false);
@@ -131,7 +131,7 @@ export default function ContactPage() {
                     <h2 className="text-2xl font-bold text-neutral-900 mb-2">Message Sent!</h2>
                     <p className="text-neutral-500 mb-6">
                       Your email client should have opened. If not, you can reach us directly at{' '}
-                      <a href="mailto:support@examscholars.com" className="text-accent-500 font-medium">support@examscholars.com</a>
+                      <a href="mailto:support@Examinery.com" className="text-accent-500 font-medium">support@Examinery.com</a>
                     </p>
                     <button
                       onClick={() => { setSubmitted(false); setFormData({ name: '', email: '', subject: '', message: '' }); }}

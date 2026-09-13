@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 
 export const metadata: Metadata = {
   title: 'Sign In',
-  description: 'Sign in to your ExamScholars account',
+  description: 'Sign in to your Examinery account',
 };
 
 export default function AuthLayout({ children }: { children: React.ReactNode }) {
@@ -12,7 +12,7 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
         {children}
       </div>
       <footer className="py-6 text-center text-sm text-neutral-500">
-        <p>&copy; {new Date().getFullYear()} Exam Scholars. All rights reserved.</p>
+        <p>&copy; {new Date().getFullYear()} Examinery. All rights reserved.</p>
       </footer>
     </div>
   );

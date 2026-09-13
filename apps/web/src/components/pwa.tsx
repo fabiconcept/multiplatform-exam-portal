@@ -86,7 +86,7 @@ export function InstallPrompt() {
             <span className="text-lg font-bold text-neutral-900">E</span>
           </div>
           <div className="flex-1 min-w-0">
-            <p className="font-semibold text-sm">Install ExamScholars</p>
+            <p className="font-semibold text-sm">Install Examinery</p>
             <p className="text-xs text-neutral-400 mt-0.5">
               Add to your home screen for quick access and offline practice
             </p>

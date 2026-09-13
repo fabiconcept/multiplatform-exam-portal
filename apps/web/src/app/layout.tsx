@@ -4,39 +4,39 @@ import '../styles/globals.css';
 import { Providers } from './providers';
 import { ServiceWorkerRegistration, InstallPrompt } from '@/components/pwa';
 
-const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'https://examscholars.com';
+const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'https://Examinery.com';
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
   title: {
-    template: '%s | ExamScholars',
-    default: 'ExamScholars — CBT & Exam Preparation Platform',
+    template: '%s | Examinery',
+    default: 'Examinery — CBT & Exam Preparation Platform',
   },
   description:
     'Practice CBT exams, track your progress, and ace your tests. The leading computer-based test platform for Nigerian students.',
   keywords: ['CBT', 'exam preparation', 'practice tests', 'computer-based test', 'Nigerian exams', 'WAEC', 'JAMB', 'NECO'],
-  authors: [{ name: 'ExamScholars' }],
-  creator: 'ExamScholars',
-  publisher: 'ExamScholars',
+  authors: [{ name: 'Examinery' }],
+  creator: 'Examinery',
+  publisher: 'Examinery',
   openGraph: {
     type: 'website',
     locale: 'en_NG',
     url: SITE_URL,
-    siteName: 'ExamScholars',
-    title: 'ExamScholars — CBT & Exam Preparation Platform',
+    siteName: 'Examinery',
+    title: 'Examinery — CBT & Exam Preparation Platform',
     description: 'Practice CBT exams, track your progress, and ace your tests.',
     images: [
       {
         url: `${SITE_URL}/og-image.png`,
         width: 1200,
         height: 630,
-        alt: 'ExamScholars',
+        alt: 'Examinery',
       },
     ],
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'ExamScholars — CBT & Exam Preparation Platform',
+    title: 'Examinery — CBT & Exam Preparation Platform',
     description: 'Practice CBT exams, track your progress, and ace your tests.',
     images: [`${SITE_URL}/og-image.png`],
   },
@@ -72,7 +72,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   const jsonLd = {
     '@context': 'https://schema.org',
     '@type': 'WebApplication',
-    name: 'ExamScholars',
+    name: 'Examinery',
     url: SITE_URL,
     description: 'Practice CBT exams, track your progress, and ace your tests. The leading computer-based test platform for Nigerian students.',
     applicationCategory: 'EducationalApplication',
@@ -84,7 +84,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     },
     author: {
       '@type': 'Organization',
-      name: 'ExamScholars',
+      name: 'Examinery',
       url: SITE_URL,
     },
   };
@@ -95,7 +95,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-        <meta name="apple-mobile-web-app-title" content="ExamScholars" />
+        <meta name="apple-mobile-web-app-title" content="Examinery" />
         <script
           type="application/ld+json"
           dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}

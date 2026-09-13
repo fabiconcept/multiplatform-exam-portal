@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useForm, Controller } from 'react-hook-form';
@@ -9,14 +9,14 @@ import { showToast } from '@/lib/toast';
 import { useAuthStore } from '@/stores/auth';
 import { registerSchema, type RegisterInput } from '@/lib/validations';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-
-const exams = ['JAMB/UTME', 'WAEC/SSCE', 'Post-UTME', 'BECE', 'NCEE'];
+import { api, type Exam } from '@/lib/api';
 
 export default function RegisterPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const router = useRouter();
   const { register: registerUser, isLoading } = useAuthStore();
+  const [exams, setExams] = useState<string[]>([]);
 
   const {
     register,
@@ -27,6 +27,12 @@ export default function RegisterPage() {
     resolver: zodResolver(registerSchema),
     mode: 'onSubmit',
   });
+
+  useEffect(() => {
+    api<{ exams: Exam[] }>('/auth/exams')
+      .then((res) => setExams(res.exams.map((e) => e.name)))
+      .catch(() => {});
+  }, []);
 
   const onSubmit = async (data: RegisterInput) => {
     const { confirmPassword, ...submitData } = data;
@@ -60,7 +66,7 @@ export default function RegisterPage() {
             <div className="w-14 h-14 bg-primary-500 rounded-2xl flex items-center justify-center">
               <span className="text-3xl font-bold text-neutral-900">E</span>
             </div>
-            <span className="text-3xl font-bold text-neutral-900 font-display">ExamScholars</span>
+            <span className="text-3xl font-bold text-neutral-900 font-display">Examinery</span>
           </Link>
           
           <h1 className="text-4xl font-display font-bold text-neutral-900 mb-4 leading-tight">
@@ -69,7 +75,7 @@ export default function RegisterPage() {
             journey today.
           </h1>
           <p className="text-lg text-neutral-600 mb-8">
-            Join 300,000+ students already using ExamScholars to ace their exams.
+            Join 300,000+ students already using Examinery to ace their exams.
           </p>
 
           <div className="space-y-4">
@@ -98,7 +104,7 @@ export default function RegisterPage() {
               <div className="w-12 h-12 bg-primary-500 rounded-2xl flex items-center justify-center">
                 <span className="text-2xl font-bold text-neutral-900">E</span>
               </div>
-              <span className="text-2xl font-bold text-neutral-900 font-display">ExamScholars</span>
+              <span className="text-2xl font-bold text-neutral-900 font-display">Examinery</span>
             </Link>
           </div>
 

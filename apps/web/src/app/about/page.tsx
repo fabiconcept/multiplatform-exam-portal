@@ -50,7 +50,7 @@ const values = [
 
 const team = [
   {
-    name: 'ExamScholars Team',
+    name: 'Examinery Team',
     role: 'Education & Technology',
     description: 'A passionate team dedicated to revolutionizing exam preparation in Nigeria.',
   },
@@ -66,7 +66,7 @@ export default function AboutPage() {
           <div className="section-container text-center">
             <span className="badge bg-white/20 text-white mb-4 inline-block">About Us</span>
             <h1 className="text-4xl md:text-5xl lg:text-6xl font-display font-bold text-white mb-6">
-              About ExamScholars
+              About Examinery
             </h1>
             <p className="text-lg md:text-xl text-white/80 max-w-2xl mx-auto">
               Empowering Nigerian students to succeed in their exams through innovative technology 
@@ -81,7 +81,7 @@ export default function AboutPage() {
             <div>
               <h2 className="text-3xl font-display font-bold mb-6">Our Mission</h2>
               <p className="text-lg text-neutral-600 mb-6">
-                ExamScholars was created with a simple mission: to provide every Nigerian student 
+                Examinery was created with a simple mission: to provide every Nigerian student 
                 with access to quality exam preparation materials. We understand the challenges 
                 students face in preparing for important examinations like JAMB, WAEC, BECE, and NCEE.
               </p>
@@ -92,7 +92,7 @@ export default function AboutPage() {
               </p>
               <p className="text-lg text-neutral-600">
                 Whether you&apos;re a student aiming for top scores, a parent guiding your child, 
-                or an educator looking for quality resources, ExamScholars is your trusted partner 
+                or an educator looking for quality resources, Examinery is your trusted partner 
                 in academic success.
               </p>
             </div>
@@ -132,7 +132,7 @@ export default function AboutPage() {
             <p className="text-lg text-neutral-600 max-w-2xl mx-auto mb-8">
               We are a dedicated team of educators, developers, and exam experts committed to 
               helping students succeed. Our combined experience in education and technology 
-              drives us to continuously improve the ExamScholars platform.
+              drives us to continuously improve the Examinery platform.
             </p>
             {team.map((member) => (
               <div key={member.name} className="inline-block">
@@ -153,7 +153,7 @@ export default function AboutPage() {
               Ready to start your exam preparation journey?
             </h2>
             <p className="text-neutral-400 mb-6">
-              Join 300,000+ students already using ExamScholars
+              Join 300,000+ students already using Examinery
             </p>
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
               <Link

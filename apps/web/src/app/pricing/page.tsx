@@ -194,7 +194,7 @@ export default function PricingPage() {
               Ready to start practicing?
             </h2>
             <p className="text-neutral-400 mb-6">
-              Join 300,000+ students already using ExamScholars
+              Join 300,000+ students already using Examinery
             </p>
             <Link
               href="/register"

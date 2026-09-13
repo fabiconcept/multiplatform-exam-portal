@@ -119,7 +119,7 @@ export default function PracticePage() {
   const [settings, setSettings] = useState<UserSettings | null>(null);
   const [timerWarningShown, setTimerWarningShown] = useState(false);
 
-  const isActivated = user?.is_active || usageStatus?.is_activated || false;
+  const isActivated = !user?.is_banned && (user?.is_active || usageStatus?.is_activated || false);
 
   // ─── Helper: find current exam by slug ─────────────────────────────────
   const currentExam = exams.find(e => e.slug === config.examType);
@@ -252,7 +252,7 @@ export default function PracticePage() {
     if (step !== 'practice' || !sessionId || !settings?.auto_save) return;
     const state = { sessionId, currentQuestion, answers, config: { examType: config.examType, mode: config.mode } };
     try {
-      localStorage.setItem('examscholars-practice-save', JSON.stringify(state));
+      localStorage.setItem('Examinery-practice-save', JSON.stringify(state));
     } catch { /* ignore */ }
   }, [sessionId, currentQuestion, answers, step, settings?.auto_save, config.examType, config.mode]);
 
@@ -260,7 +260,7 @@ export default function PracticePage() {
   useEffect(() => {
     if (step !== 'type' || !token) return;
     try {
-      const saved = localStorage.getItem('examscholars-practice-save');
+      const saved = localStorage.getItem('Examinery-practice-save');
       if (!saved) return;
       const state = JSON.parse(saved);
       if (state.sessionId) {
@@ -282,10 +282,10 @@ export default function PracticePage() {
               setStep('practice');
               toast.success('Restored your previous practice session');
             } else {
-              localStorage.removeItem('examscholars-practice-save');
+              localStorage.removeItem('Examinery-practice-save');
             }
           })
-          .catch(() => localStorage.removeItem('examscholars-practice-save'));
+          .catch(() => localStorage.removeItem('Examinery-practice-save'));
       }
     } catch { /* ignore */ }
   }, [step, token]);
@@ -400,7 +400,7 @@ export default function PracticePage() {
         time_spent_seconds: 0,
       }));
       await sessionApi.submitSession(token, sessionId, { answers: answerPayload, time_spent_seconds: config.duration * 60 - timeRemaining });
-      localStorage.removeItem('examscholars-practice-save');
+      localStorage.removeItem('Examinery-practice-save');
       toast.success('Session submitted!');
       router.push(`/dashboard/results?session=${sessionId}`);
     } catch {
@@ -413,16 +413,16 @@ export default function PracticePage() {
   // ─── Abandon session ───────────────────────────────────────────────────
   const handleAbandonSession = async () => {
     if (!token || !sessionId) {
-      localStorage.removeItem('examscholars-practice-save');
+      localStorage.removeItem('Examinery-practice-save');
       setStep('type');
       return;
     }
     try {
       await sessionApi.abandonSession(token, sessionId);
-      localStorage.removeItem('examscholars-practice-save');
+      localStorage.removeItem('Examinery-practice-save');
       toast.success('Session abandoned');
     } catch {
-      localStorage.removeItem('examscholars-practice-save');
+      localStorage.removeItem('Examinery-practice-save');
     }
     setSessionId(null);
     setQuestions([]);
@@ -523,12 +523,12 @@ export default function PracticePage() {
             </p>
             <button
               onClick={() => {
-                localStorage.removeItem('examscholars-practice-save');
+                localStorage.removeItem('Examinery-practice-save');
                 setStep('type');
                 setSessionId(null);
                 setQuestions([]);
               }}
-              className="px-6 py-2.5 rounded-xl bg-primary-500 text-white font-medium hover:bg-primary-600 transition-colors"
+              className="px-6 py-2.5 rounded-xl bg-primary-500 text-neutral-900 font-medium hover:bg-primary-600 transition-colors"
             >
               Go Back
             </button>
@@ -710,7 +710,7 @@ export default function PracticePage() {
                                   ? 'bg-error-500 text-white'
                                   : 'bg-neutral-100 text-neutral-600'
                               : isSelected
-                                ? 'bg-primary-500 text-white'
+                                ? 'bg-primary-500 text-neutral-900'
                                 : 'bg-neutral-100 text-neutral-600'
                           }`}>{option}</span>
                           <span className="text-sm lg:text-base text-neutral-700">{optionText}</span>

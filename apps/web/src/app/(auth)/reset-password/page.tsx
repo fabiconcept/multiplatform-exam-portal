@@ -82,7 +82,7 @@ function ResetPasswordForm() {
             <div className="w-14 h-14 bg-primary-500 rounded-2xl flex items-center justify-center">
               <span className="text-3xl font-bold text-neutral-900">E</span>
             </div>
-            <span className="text-3xl font-bold text-neutral-900 font-display">ExamScholars</span>
+            <span className="text-3xl font-bold text-neutral-900 font-display">Examinery</span>
           </Link>
         </div>
 
@@ -117,7 +117,7 @@ function ResetPasswordForm() {
             <div className="w-14 h-14 bg-primary-500 rounded-2xl flex items-center justify-center">
               <span className="text-3xl font-bold text-neutral-900">E</span>
             </div>
-            <span className="text-3xl font-bold text-neutral-900 font-display">ExamScholars</span>
+            <span className="text-3xl font-bold text-neutral-900 font-display">Examinery</span>
           </Link>
         </div>
 
@@ -151,7 +151,7 @@ function ResetPasswordForm() {
           <div className="w-14 h-14 bg-primary-500 rounded-2xl flex items-center justify-center">
             <span className="text-3xl font-bold text-neutral-900">E</span>
           </div>
-          <span className="text-3xl font-bold text-neutral-900 font-display">ExamScholars</span>
+          <span className="text-3xl font-bold text-neutral-900 font-display">Examinery</span>
         </Link>
       </div>
 

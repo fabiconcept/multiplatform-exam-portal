@@ -27,7 +27,7 @@ export default function HistoryPage() {
   });
 
   return (
-    <div className="max-w-4xl mx-auto px-4 py-8">
+    <div className="px-4 py-8">
       <h1 className="text-2xl font-bold text-neutral-900 mb-6">Exam History</h1>
 
       <div className="flex gap-2 mb-6">

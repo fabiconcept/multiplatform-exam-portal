@@ -136,7 +136,7 @@ export default function PostUTMEPage() {
 
         {/* Features */}
         <div className="section-container mb-16">
-          <h2 className="text-3xl font-display font-bold text-center mb-12">Why practice Post-UTME with ExamScholars?</h2>
+          <h2 className="text-3xl font-display font-bold text-center mb-12">Why practice Post-UTME with Examinery?</h2>
           <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
             {features.map((feature) => (
               <div key={feature.title} className="bg-white rounded-3xl p-6 text-center">
