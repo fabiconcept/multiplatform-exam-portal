@@ -503,18 +503,25 @@ export default function UsersPage() {
                           </Badge>
                         </TableCell>
                         <TableCell>
-                          {user.is_banned ? (
-                            <Badge variant="destructive" className="flex items-center gap-1">
-                              <Ban className="h-3 w-3" />
-                              Banned
-                            </Badge>
-                          ) : user.is_active ? (
-                            <Badge variant="default" className="flex items-center gap-1 bg-emerald-600">
-                              Premium
-                            </Badge>
-                          ) : (
-                            <Badge variant="secondary">Free</Badge>
-                          )}
+                          <div className="flex items-center gap-1 flex-wrap">
+                            {user.is_banned ? (
+                              <Badge variant="destructive" className="flex items-center gap-1">
+                                <Ban className="h-3 w-3" />
+                                Banned
+                              </Badge>
+                            ) : user.is_active ? (
+                              <Badge variant="default" className="flex items-center gap-1 bg-emerald-600">
+                                Premium
+                              </Badge>
+                            ) : (
+                              <Badge variant="secondary">Free</Badge>
+                            )}
+                            {user.email_verified === false && (
+                              <Badge variant="outline" className="text-blue-600 border-blue-200">
+                                Unverified
+                              </Badge>
+                            )}
+                          </div>
                         </TableCell>
                         <TableCell className="text-sm text-muted-foreground">
                           {formatDate(user.created_at)}
@@ -697,9 +704,14 @@ export default function UsersPage() {
               </div>
               <div className="flex items-center justify-between rounded-lg bg-muted px-4 py-3">
                 <span className="text-muted-foreground">Status</span>
-                <Badge variant={viewUser.is_active ? 'default' : 'destructive'}>
-                  {viewUser.is_active ? 'Active' : 'Inactive'}
-                </Badge>
+                <div className="flex items-center gap-1.5">
+                  <Badge variant={viewUser.is_banned ? 'destructive' : viewUser.is_active ? 'default' : 'secondary'}>
+                    {viewUser.is_banned ? 'Banned' : viewUser.is_active ? 'Premium' : 'Free'}
+                  </Badge>
+                  {viewUser.email_verified === false && (
+                    <Badge variant="outline" className="text-blue-600 border-blue-200">Unverified</Badge>
+                  )}
+                </div>
               </div>
             </div>
           )}

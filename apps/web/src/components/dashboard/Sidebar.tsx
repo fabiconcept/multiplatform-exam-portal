@@ -143,11 +143,11 @@ export default function Sidebar() {
     <>
       {/* Logo */}
       <div className="p-6 border-b border-neutral-800">
-        <Link href="/dashboard" className="flex items-center gap-3" aria-label="ExamScholars Dashboard">
+        <Link href="/dashboard" className="flex items-center gap-3" aria-label="Examinery Dashboard">
           <div className="w-10 h-10 bg-primary-500 rounded-xl flex items-center justify-center" aria-hidden="true">
             <span className="text-xl font-bold text-neutral-900">E</span>
           </div>
-          <span className="text-lg font-bold font-display">ExamScholars</span>
+          <span className="text-lg font-bold font-display">Examinery</span>
         </Link>
       </div>
 
@@ -170,7 +170,7 @@ export default function Sidebar() {
               {user?.email_verified === false && (
                 <span className="text-[10px] px-1.5 py-0.5 bg-blue-500/20 text-blue-400 rounded font-medium">Unverified</span>
               )}
-              <p className="text-xs text-neutral-300 truncate">{user?.target_exam || 'ExamScholars'}</p>
+              <p className="text-xs text-neutral-300 truncate">{user?.target_exam || 'Examinery'}</p>
             </div>
           </div>
         </div>

@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import toast from 'react-hot-toast';
-import { authApi } from '@/lib/api';
+import { authApi, api, type Exam } from '@/lib/api';
 import { useAuthStore } from '@/stores/auth';
 
 export default function ProfilePage() {
@@ -22,6 +22,13 @@ export default function ProfilePage() {
     new_password: '',
     confirm_password: '',
   });
+  const [examOptions, setExamOptions] = useState<string[]>([]);
+
+  useEffect(() => {
+    api<{ exams: Exam[] }>('/auth/exams')
+      .then((res) => setExamOptions(res.exams.map((e) => e.name)))
+      .catch(() => {});
+  }, []);
 
   useEffect(() => {
     if (user) {
@@ -79,8 +86,6 @@ export default function ProfilePage() {
     ? user.name.split(' ').map((n) => n[0]).join('').toUpperCase().slice(0, 2)
     : 'U';
 
-  const examOptions = ['JAMB/UTME', 'WAEC/SSCE', 'Post-UTME', 'BECE', 'NCEE'];
-
   if (!user) {
     return (
       <div className="p-4 lg:p-8">
@@ -123,13 +128,27 @@ export default function ProfilePage() {
               <span className="text-xs px-3 py-1 bg-primary-100 text-primary-700 rounded-full font-medium">
                 {user?.target_exam || 'No exam selected'}
               </span>
-              {user?.is_active ? (
+              {user?.is_banned ? (
+                <span className="text-xs px-3 py-1 bg-red-100 text-red-700 rounded-full font-medium">
+                  Banned
+                </span>
+              ) : user?.is_active ? (
                 <span className="text-xs px-3 py-1 bg-success-100 text-success-700 rounded-full font-medium">
-                  Activated ✓
+                  Activated
                 </span>
               ) : (
                 <span className="text-xs px-3 py-1 bg-warning-100 text-warning-700 rounded-full font-medium">
                   Free Plan
+                </span>
+              )}
+              {user?.email_verified === false && (
+                <span className="text-xs px-3 py-1 bg-blue-100 text-blue-700 rounded-full font-medium">
+                  Email Unverified
+                </span>
+              )}
+              {user?.email_verified === true && (
+                <span className="text-xs px-3 py-1 bg-green-100 text-green-700 rounded-full font-medium">
+                  Email Verified
                 </span>
               )}
             </div>
@@ -314,8 +333,8 @@ export default function ProfilePage() {
           <div className="flex items-center justify-between p-4 bg-neutral-50 rounded-xl">
             <div className="text-left">
               <p className="font-medium text-neutral-900">Activation Status</p>
-              <p className={`text-sm ${user?.is_active ? 'text-success-600' : 'text-warning-600'}`}>
-                {user?.is_active ? 'Activated ✓ Lifetime access' : 'Free Plan — 5 questions limit'}
+              <p className={`text-sm ${user?.is_banned ? 'text-red-600' : user?.is_active ? 'text-success-600' : 'text-warning-600'}`}>
+                {user?.is_banned ? 'Banned — Contact support' : user?.is_active ? 'Activated ✓ Lifetime access' : 'Free Plan — 5 questions limit'}
               </p>
             </div>
           </div>
