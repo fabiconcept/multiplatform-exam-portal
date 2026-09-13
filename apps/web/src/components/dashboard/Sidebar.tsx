@@ -74,6 +74,16 @@ const navItems = [
 
 const bottomItems = [
   {
+    label: 'My Key',
+    href: '/dashboard/my-key',
+    activeOnly: true,
+    icon: (
+      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.75 5.25a3 3 0 013 3m3 0a6 6 0 01-7.029 5.912c-.563-.097-1.159.026-1.563.43L10.5 17.25H8.25v2.25H6v2.25H2.25v-2.818c0-.597.237-1.17.659-1.591l6.499-6.499c.404-.404.527-1 .43-1.563A6 6 0 1121.75 8.25z" />
+      </svg>
+    ),
+  },
+  {
     label: 'Profile',
     href: '/dashboard/profile',
     icon: (
@@ -149,13 +159,18 @@ export default function Sidebar() {
           </div>
           <div className="flex-1 min-w-0">
             <p className="font-medium truncate">{user?.name || 'Student'}</p>
-            <div className="flex items-center gap-1.5">
-              {user?.is_active ? (
+            <div className="flex items-center gap-1.5 flex-wrap">
+              {user?.is_banned ? (
+                <span className="text-[10px] px-1.5 py-0.5 bg-red-500/20 text-red-400 rounded font-medium">Banned</span>
+              ) : user?.is_active ? (
                 <span className="text-[10px] px-1.5 py-0.5 bg-success-500/20 text-success-400 rounded font-medium">Activated</span>
               ) : (
                 <span className="text-[10px] px-1.5 py-0.5 bg-warning-500/20 text-warning-400 rounded font-medium">Free</span>
               )}
-              <p className="text-xs text-neutral-400 truncate">{user?.target_exam || 'ExamScholars'}</p>
+              {user?.email_verified === false && (
+                <span className="text-[10px] px-1.5 py-0.5 bg-blue-500/20 text-blue-400 rounded font-medium">Unverified</span>
+              )}
+              <p className="text-xs text-neutral-300 truncate">{user?.target_exam || 'ExamScholars'}</p>
             </div>
           </div>
         </div>
@@ -173,7 +188,7 @@ export default function Sidebar() {
               className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${
                 isActive
                   ? 'bg-primary-500 text-neutral-900 font-semibold'
-                  : 'text-neutral-400 hover:bg-neutral-800 hover:text-white'
+                  : 'text-neutral-300 hover:bg-neutral-800 hover:text-white'
               }`}
             >
               {item.icon}
@@ -185,7 +200,9 @@ export default function Sidebar() {
 
       {/* Bottom Nav */}
       <div className="p-4 border-t border-neutral-800 space-y-1" role="navigation" aria-label="Account navigation">
-        {bottomItems.map((item) => {
+        {bottomItems
+          .filter((item) => !(item as any).activeOnly || user?.is_active)
+          .map((item) => {
           const isActive = pathname === item.href;
           return (
             <Link
@@ -195,7 +212,7 @@ export default function Sidebar() {
               className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${
                 isActive
                   ? 'bg-primary-500 text-neutral-900 font-semibold'
-                  : 'text-neutral-400 hover:bg-neutral-800 hover:text-white'
+                  : 'text-neutral-300 hover:bg-neutral-800 hover:text-white'
               }`}
             >
               {item.icon}
@@ -205,7 +222,7 @@ export default function Sidebar() {
         })}
         <button
           onClick={handleLogout}
-          className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-neutral-400 hover:bg-red-500/10 hover:text-red-400 transition-all"
+          className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-neutral-300 hover:bg-red-500/10 hover:text-red-400 transition-all"
           aria-label="Sign out of your account"
         >
           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -256,7 +273,7 @@ export default function Sidebar() {
         {/* Close button */}
         <button
           onClick={() => setMobileOpen(false)}
-          className="absolute top-4 right-4 p-2 text-neutral-400 hover:text-white rounded-lg hover:bg-neutral-800 transition-colors"
+          className="absolute top-4 right-4 p-2 text-neutral-300 hover:text-white rounded-lg hover:bg-neutral-800 transition-colors"
           aria-label="Close menu"
         >
           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
