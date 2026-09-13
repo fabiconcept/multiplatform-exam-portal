@@ -1,6 +1,6 @@
-const CACHE_NAME = 'examscholars-v1';
-const STATIC_CACHE = 'examscholars-static-v1';
-const DYNAMIC_CACHE = 'examscholars-dynamic-v1';
+const CACHE_NAME = 'Examinery-v1';
+const STATIC_CACHE = 'Examinery-static-v1';
+const DYNAMIC_CACHE = 'Examinery-dynamic-v1';
 
 const PRECACHE_URLS = [
   '/',

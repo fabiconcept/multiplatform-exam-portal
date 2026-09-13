@@ -1,6 +1,6 @@
 {
-  "name": "ExamScholars — CBT & Exam Preparation",
-  "short_name": "ExamScholars",
+  "name": "Examinery — CBT & Exam Preparation",
+  "short_name": "Examinery",
   "description": "Practice CBT exams, track your progress, and ace your tests. The leading computer-based test platform for Nigerian students.",
   "start_url": "/dashboard",
   "scope": "/",

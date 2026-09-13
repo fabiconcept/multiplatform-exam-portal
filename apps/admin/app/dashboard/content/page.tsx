@@ -60,6 +60,7 @@ export default function ContentPage() {
   const [formDescription, setFormDescription] = useState('')
   const [formMinSubjects, setFormMinSubjects] = useState(1)
   const [formMaxSubjects, setFormMaxSubjects] = useState(0)
+  const [formIconUrl, setFormIconUrl] = useState('')
   const [saving, setSaving] = useState(false)
 
   const [deleteConfirm, setDeleteConfirm] = useState<{ id: string; type: string; name: string } | null>(null)
@@ -143,6 +144,7 @@ export default function ContentPage() {
     setFormDescription('')
     setFormMinSubjects(1)
     setFormMaxSubjects(0)
+    setFormIconUrl('')
     setDialogOpen(true)
   }
 
@@ -154,6 +156,7 @@ export default function ContentPage() {
     setFormDescription(item.description || '')
     setFormMinSubjects(item.min_subjects ?? 1)
     setFormMaxSubjects(item.max_subjects ?? 0)
+    setFormIconUrl(item.icon_url || '')
     setDialogOpen(true)
   }
 
@@ -164,10 +167,10 @@ export default function ContentPage() {
     try {
       if (dialogType === 'exam') {
         if (editingItem) {
-          await adminApi.updateExam(token, editingItem.id, { name: formName.trim(), description: formDescription.trim() || undefined, min_subjects: formMinSubjects, max_subjects: formMaxSubjects })
+          await adminApi.updateExam(token, editingItem.id, { name: formName.trim(), description: formDescription.trim() || undefined, min_subjects: formMinSubjects, max_subjects: formMaxSubjects, icon_url: formIconUrl.trim() || undefined })
           toast.success('Exam updated')
         } else {
-          await adminApi.createExam(token, { name: formName.trim(), description: formDescription.trim() || undefined, min_subjects: formMinSubjects, max_subjects: formMaxSubjects })
+          await adminApi.createExam(token, { name: formName.trim(), description: formDescription.trim() || undefined, min_subjects: formMinSubjects, max_subjects: formMaxSubjects, icon_url: formIconUrl.trim() || undefined })
           toast.success('Exam created')
         }
       } else if (dialogType === 'subject') {
@@ -550,6 +553,22 @@ export default function ContentPage() {
                   />
                   <p className="text-xs text-muted-foreground">Maximum subjects a user can select (0 = unlimited)</p>
                 </div>
+              </div>
+            )}
+            {dialogType === 'exam' && (
+              <div className="space-y-2">
+                <Label>Icon URL <span className="text-muted-foreground">(optional)</span></Label>
+                <Input
+                  value={formIconUrl}
+                  onChange={(e) => setFormIconUrl(e.target.value)}
+                  placeholder="https://example.com/icon.png"
+                />
+                {formIconUrl && (
+                  <div className="flex items-center gap-2 mt-2">
+                    <img src={formIconUrl} alt="Icon preview" className="w-8 h-8 rounded object-contain" onError={(e) => (e.currentTarget.style.display = 'none')} />
+                    <span className="text-xs text-muted-foreground">Preview</span>
+                  </div>
+                )}
               </div>
             )}
             {dialogType !== 'topic' && (

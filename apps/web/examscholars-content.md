@@ -1,8 +1,8 @@
-# Exam Scholars - Landing Page Content Guide
+# Examinery - Landing Page Content Guide
 
 ## Site Overview
-**Exam Scholars** is Nigeria's CBT (Computer-Based Test) practice platform for exam preparation.
-**URL**: https://examscholars.com
+**Examinery** is Nigeria's CBT (Computer-Based Test) practice platform for exam preparation.
+**URL**: https://Examinery.com
 
 ---
 
@@ -41,18 +41,18 @@
 - Performance insights
 - All major devices
 
-**Image**: Exam Scholars CBT practice app shown on mobile and desktop devices
+**Image**: Examinery CBT practice app shown on mobile and desktop devices
 
 ---
 
 ## Welcome Section
-**Headline**: "Welcome to Examscholars"
+**Headline**: "Welcome to Examinery"
 
-**Description**: Examscholars app is a software application for students preparing for exams. It simulates real time exam conditions to help students prepare and evaluate their readiness for all Exams including JAMB/UTME, POST UTME, WAEC/SSCE, BECE (Junior WAEC), NCEE (Common Entrance) and many more.
+**Description**: Examinery app is a software application for students preparing for exams. It simulates real time exam conditions to help students prepare and evaluate their readiness for all Exams including JAMB/UTME, POST UTME, WAEC/SSCE, BECE (Junior WAEC), NCEE (Common Entrance) and many more.
 
-With expertly crafted content and user-friendly application, we simplify learning and make exam preparation not just effective but also enjoyable. Whether you're a student seeking top scores or a parent guiding your child's success, Examscholars is your trusted partner in education.
+With expertly crafted content and user-friendly application, we simplify learning and make exam preparation not just effective but also enjoyable. Whether you're a student seeking top scores or a parent guiding your child's success, Examinery is your trusted partner in education.
 
-It is designed to work offline without internet access, rich with thousands of past questions, its answers and detailed explanations. A robust result analysis and performance tracking system gives students insights into their strengths and weaknesses. Practice makes perfect, and Examscholars is here to help you practice your way to success.
+It is designed to work offline without internet access, rich with thousands of past questions, its answers and detailed explanations. A robust result analysis and performance tracking system gives students insights into their strengths and weaknesses. Practice makes perfect, and Examinery is here to help you practice your way to success.
 
 ---
 
@@ -75,7 +75,7 @@ Software works offline without use of internet
 ---
 
 ## How It Works Section
-**Headline**: "How Exam Scholars works"
+**Headline**: "How Examinery works"
 **Subheadline**: "We value your time, here's how it works"
 
 **Steps**:
@@ -89,9 +89,9 @@ Software works offline without use of internet
 ---
 
 ## Embed Section (For Schools/Platforms)
-**Headline**: "Create an exam here—or bring Exam Scholars to your own website."
+**Headline**: "Create an exam here—or bring Examinery to your own website."
 
-**Description**: Schools, tutors, publishers and education platforms can embed this same CBT exam builder on any website. Learners choose their exam, subjects, sessions and timing without leaving the page, then continue securely in the Exam Scholars app.
+**Description**: Schools, tutors, publishers and education platforms can embed this same CBT exam builder on any website. Learners choose their exam, subjects, sessions and timing without leaving the page, then continue securely in the Examinery app.
 
 **Benefits**:
 - **A few lines to embed** - No API key, account or backend integration
@@ -105,7 +105,7 @@ Software works offline without use of internet
 ## Pricing Section
 **Headline**: "How to Buy & Activate"
 
-**Description**: We understand that preparing for these crucial exams can be both academically challenging and financially burdensome. With Exam Scholars, you'll find that investing in your academic success won't break the bank and you are definitely going to get the best value for any dime spent on this software.
+**Description**: We understand that preparing for these crucial exams can be both academically challenging and financially burdensome. With Examinery, you'll find that investing in your academic success won't break the bank and you are definitely going to get the best value for any dime spent on this software.
 
 **Price**: This app with all the benefits and rich features can be purchased for a one time fee of **₦3,000**
 
@@ -119,7 +119,7 @@ Software works offline without use of internet
 **Headline**: "Download available on all devices"
 **Subheadline**: "Learn anywhere"
 
-**Description**: Download Exam Scholars and practise past questions wherever you learn best—even when there is no internet connection.
+**Description**: Download Examinery and practise past questions wherever you learn best—even when there is no internet connection.
 
 **Platforms**:
 - **Android** - Phones and tablets → Google Play Store
@@ -134,7 +134,7 @@ Software works offline without use of internet
 
 ## Blog Section
 **Headline**: "Study smarter"
-**Subheadline**: "Fresh from the Exam Scholars blog"
+**Subheadline**: "Fresh from the Examinery blog"
 
 **CTA**: "View all articles" → /blog
 
@@ -152,17 +152,17 @@ Software works offline without use of internet
 **Description**: We post helpful, news and educative content to help students stay updated on all our social media platforms.
 
 **Platforms**:
-- Facebook: facebook.com/ExamScholars.CBT.software
+- Facebook: facebook.com/Examinery.CBT.software
 - Twitter/X: x.com/exam_scholar
 - Instagram: instagram.com/exam_scholars_
-- TikTok: tiktok.com/@examscholars
-- YouTube: youtube.com/@examscholars_app
-- LinkedIn: linkedin.com/company/examscholars
+- TikTok: tiktok.com/@Examinery
+- YouTube: youtube.com/@Examinery_app
+- LinkedIn: linkedin.com/company/Examinery
 
 ---
 
 ## Testimonials Section
-**Headline**: "What learners say about Exam Scholars"
+**Headline**: "What learners say about Examinery"
 **Subheadline**: "Join hundreds of users for unlimited testimonies"
 
 ### Testimonial 1
@@ -173,12 +173,12 @@ Software works offline without use of internet
 ### Testimonial 2
 **Name**: Adewale Opeyemi
 **Exam**: WAEC
-**Quote**: "I thought JAMB/UTME is hard but this platform made it so easy for me. I comfortably scored 300. Thank you ExamScholars"
+**Quote**: "I thought JAMB/UTME is hard but this platform made it so easy for me. I comfortably scored 300. Thank you Examinery"
 
 ### Testimonial 3
 **Name**: Obianuju Onu
 **Exam**: JAMB/UTME
-**Quote**: "I just didn't know what to expect in exam until I started studying my school's past questions from ExamScholars"
+**Quote**: "I just didn't know what to expect in exam until I started studying my school's past questions from Examinery"
 
 ### Testimonial 4
 **Name**: Usman Abdusalam
@@ -193,17 +193,17 @@ Software works offline without use of internet
 
 **CTA**: "Get Started" → /register
 
-### Q1: What is ExamScholars?
-ExamScholars is a JAMB CBT Practice Software designed to help students prepare for the JAMB/UTME exams. It provides a platform for practicing past questions, improving subject knowledge, and enhancing speed and accuracy.
+### Q1: What is Examinery?
+Examinery is a JAMB CBT Practice Software designed to help students prepare for the JAMB/UTME exams. It provides a platform for practicing past questions, improving subject knowledge, and enhancing speed and accuracy.
 
 ### Q2: How do I use this platform?
-ExamScholars is created to help you practice past questions in real exam conditions. Download and install either the Mobile or Desktop version of the app and start practicing.
+Examinery is created to help you practice past questions in real exam conditions. Download and install either the Mobile or Desktop version of the app and start practicing.
 
-### Q3: What sets ExamScholars apart from other exam preparation tools?
-ExamScholars distinguishes itself by offering professionally evaluated past questions and answers with detailed explanations. It also simulates real-time exam conditions, helping students become better prepared.
+### Q3: What sets Examinery apart from other exam preparation tools?
+Examinery distinguishes itself by offering professionally evaluated past questions and answers with detailed explanations. It also simulates real-time exam conditions, helping students become better prepared.
 
-### Q4: Does ExamScholars help with my exam speed and accuracy?
-Yes, Examscholars simulates real exam conditions, which helps students become familiar with the format and time constraints. Regular practice with the software can improve speed and accuracy in answering questions.
+### Q4: Does Examinery help with my exam speed and accuracy?
+Yes, Examinery simulates real exam conditions, which helps students become familiar with the format and time constraints. Regular practice with the software can improve speed and accuracy in answering questions.
 
 ### Q5: Does this app have Calculator and standard shortcut keys?
 Yes, our exam interface is built to JAMB/UTME standard. It has a standard calculator and is equipped with the JAMB approved 8 keys shortcut which can help you take exams without using your mouse.
@@ -211,11 +211,11 @@ Yes, our exam interface is built to JAMB/UTME standard. It has a standard calcul
 ### Q6: Are the questions error free?
 All our questions are carefully vetted by highly competent professionals to ensure highest possible degree of accuracy. So, our questions are error free. However, if you notice anything you believe to be an error, you are welcome share it with us and we will rectify it as soon as possible.
 
-### Q7: Can I track my progress and performance with Examscholars?
-Yes, ExamScholars contains features to track your progress, review your performance, and identify areas where you need improvement. It provides valuable insights to help you focus your study efforts effectively.
+### Q7: Can I track my progress and performance with Examinery?
+Yes, Examinery contains features to track your progress, review your performance, and identify areas where you need improvement. It provides valuable insights to help you focus your study efforts effectively.
 
-### Q8: Are the past questions in Examscholars up to date with the latest exam year?
-Yes, ExamScholars updates the content of the application every year.
+### Q8: Are the past questions in Examinery up to date with the latest exam year?
+Yes, Examinery updates the content of the application every year.
 
 ---
 
@@ -248,9 +248,9 @@ Yes, ExamScholars updates the content of the application every year.
 - Privacy policy
 
 ### Contact
-- Email: support@examscholars.com
+- Email: support@Examinery.com
 - Phone: 08133744803
-- Copyright: © 2026 Exam Scholars. All rights reserved.
+- Copyright: © 2026 Examinery. All rights reserved.
 
 ---
 

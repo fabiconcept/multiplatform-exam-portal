@@ -35,7 +35,7 @@ export default function AdminLoginPage() {
             E
           </div>
           <h1 className="text-2xl font-bold tracking-tight text-gray-950">Admin Panel</h1>
-          <p className="mt-1.5 text-sm text-gray-500">Sign in to manage ExamScholars</p>
+          <p className="mt-1.5 text-sm text-gray-500">Sign in to manage Examinery</p>
         </div>
 
         <div className="rounded-2xl border border-gray-100 bg-white p-8 shadow-sm">
@@ -43,7 +43,7 @@ export default function AdminLoginPage() {
             <div>
               <label htmlFor="email" className="mb-1.5 block text-sm font-medium text-gray-700">Email</label>
               <input id="email" type="email" value={email} onChange={e => setEmail(e.target.value)} required
-                className={inputCls} placeholder="admin@examscholars.com" />
+                className={inputCls} placeholder="admin@Examinery.com" />
             </div>
             <div>
               <label htmlFor="password" className="mb-1.5 block text-sm font-medium text-gray-700">Password</label>

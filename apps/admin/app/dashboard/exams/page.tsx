@@ -502,7 +502,7 @@ export default function ExamsPage() {
               {editingExam ? 'Update the exam details below.' : 'Fill in the details to create a new exam.'}
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-4 py-2">
+          <div className="max-h-[70vh] overflow-y-auto space-y-4 py-2 px-1">
             <div className="space-y-2">
               <Label htmlFor="exam-name">Name</Label>
               <Input
