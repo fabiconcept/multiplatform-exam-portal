@@ -5,44 +5,39 @@ import Link from 'next/link';
 
 const faqs = [
   {
-    question: 'What is ExamScholars?',
+    question: 'What is Examinery?',
     answer:
-      'ExamScholars is a CBT Practice Software designed to help students prepare for Nigerian exams including JAMB/UTME, WAEC/SSCE, BECE and NCEE. It provides a platform for practicing past questions, improving subject knowledge, and enhancing speed and accuracy.',
+      'Examinery is a CBT practice platform built for Nigerian students. It gives you real past questions from JAMB, WAEC, Post-UTME, BECE, and NCEE, with detailed explanations after every answer. You practice under real exam conditions, so nothing surprises you on exam day.',
   },
   {
-    question: 'How do I use this platform?',
+    question: 'Is it free?',
     answer:
-      'ExamScholars is created to help you practice past questions in real exam conditions. Download and install either the Mobile or Desktop version of the app and start practicing. You can use it offline without internet access.',
+      'Yes. You can practice with a free set of questions to see how it works. For unlimited access to all subjects and features, there is a one-time activation fee of ₦3,000. No subscriptions. No hidden charges. Pay once, use forever.',
   },
   {
-    question: 'What sets ExamScholars apart from other exam preparation tools?',
+    question: 'Does it work without internet?',
     answer:
-      'ExamScholars distinguishes itself by offering professionally evaluated past questions and answers with detailed explanations. It also simulates real-time exam conditions, helping students become better prepared. Our software works offline and is available on all major devices.',
+      'Yes. Download the app, pick your exam content, and everything works offline. Practice at home, in school, on the bus, no data needed. Examinery was built for students who do not always have reliable internet access.',
   },
   {
-    question: 'Does ExamScholars help with my exam speed and accuracy?',
+    question: 'What makes Examinery different from other apps?',
     answer:
-      'Yes, ExamScholars simulates real exam conditions, which helps students become familiar with the format and time constraints. Regular practice with the software can improve speed and accuracy in answering questions.',
+      'Three things. First, every question has a detailed explanation, you learn the concept, not just the answer. Second, the exam mode simulates real JAMB conditions with the approved 8-key shortcut. Third, it works fully offline on Android, iPhone, Windows, and Mac. One account works across all your devices.',
   },
   {
-    question: 'Does this app have Calculator and standard shortcut keys?',
+    question: 'Can I track my progress?',
     answer:
-      'Yes, our exam interface is built to JAMB/UTME standard. It has a standard calculator and is equipped with the JAMB approved 8 keys shortcut which can help you take exams without using your mouse.',
+      'Yes. Examinery tracks your scores, study streak, time spent, and performance by subject. You can see exactly where you are strong and where you need more practice. The more you practice, the more accurate your progress data becomes.',
   },
   {
-    question: 'Are the questions error free?',
+    question: 'Are the questions current?',
     answer:
-      'All our questions are carefully vetted by highly competent professionals to ensure highest possible degree of accuracy. So, our questions are error free. However, if you notice anything you believe to be an error, you are welcome to share it with us and we will rectify it as soon as possible.',
+      'We update our question bank regularly to include the most recent past questions and exam patterns. You are always practicing with material that reflects what you will actually see in the exam.',
   },
   {
-    question: 'Can I track my progress and performance?',
+    question: 'Which devices can I use?',
     answer:
-      'Yes, ExamScholars contains features to track your progress, review your performance, and identify areas where you need improvement. It provides valuable insights to help you focus your study efforts effectively.',
-  },
-  {
-    question: 'Are the past questions up to date?',
-    answer:
-      'Yes, ExamScholars updates the content of the application every year to ensure you have access to the most recent past questions and exam patterns.',
+      'Examinery works on Android phones and tablets, iPhones and iPads, Windows PCs (7, 8, 10, and 11), and macOS computers. One account works across all your devices. Start on your phone, continue on your laptop.',
   },
 ];
 
@@ -56,22 +51,22 @@ function FAQItem({
   onToggle: () => void;
 }) {
   return (
-    <div className="card bg-white">
+    <div className="border border-neutral-200 rounded-2xl overflow-hidden">
       <button
         onClick={onToggle}
-        className="w-full flex items-center justify-between text-left"
+        className="w-full flex items-center justify-between text-left px-6 py-5 hover:bg-neutral-50 transition-colors"
         aria-expanded={isOpen}
       >
-        <span className="text-lg font-semibold text-neutral-900 pr-4">
+        <span className="text-base font-semibold text-neutral-900 pr-4">
           {faq.question}
         </span>
         <span
-          className={`w-8 h-8 rounded-full bg-primary-100 flex items-center justify-center flex-shrink-0 transition-transform duration-200 ${
+          className={`w-8 h-8 rounded-full bg-primary-100 flex items-center justify-center shrink-0 transition-transform duration-200 ${
             isOpen ? 'rotate-180' : ''
           }`}
         >
           <svg
-            className="w-5 h-5 text-primary-600"
+            className="w-4 h-4 text-primary-600"
             fill="none"
             stroke="currentColor"
             viewBox="0 0 24 24"
@@ -86,11 +81,13 @@ function FAQItem({
         </span>
       </button>
       <div
-        className={`overflow-hidden transition-all duration-200 ${
-          isOpen ? 'max-h-96 mt-4' : 'max-h-0'
+        className={`overflow-hidden transition-all duration-300 ease-in-out ${
+          isOpen ? 'max-h-96 opacity-100' : 'max-h-0 opacity-0'
         }`}
       >
-        <p className="text-neutral-600 leading-relaxed">{faq.answer}</p>
+        <p className="px-6 pb-5 text-neutral-600 leading-relaxed text-sm">
+          {faq.answer}
+        </p>
       </div>
     </div>
   );
@@ -102,19 +99,22 @@ export default function FAQ() {
   return (
     <section className="py-16 md:py-24 bg-white">
       <div className="section-container">
-        <div className="grid lg:grid-cols-2 gap-12">
+        <div className="grid lg:grid-cols-2 gap-12 lg:gap-16">
           {/* Left - Header */}
-          <div>
+          <div className="lg:sticky lg:top-24 lg:self-start">
             <span className="badge-accent mb-4 inline-block">FAQ</span>
             <h2 className="text-3xl md:text-4xl lg:text-5xl font-display font-bold text-neutral-900 mb-4">
-              Frequently Asked Questions
+              Questions? Answered.
             </h2>
             <p className="text-lg text-neutral-600 mb-8">
-              Get excellent scores in exams by preparing yourself with the best CBT simulation app for 
-              your exam. Say goodbye to exam malpractice.
+              Everything you need to know about Examinery. Can&apos;t find your answer?
+              {' '}
+              <Link href="/contact" className="text-primary-600 font-semibold hover:underline">
+                Contact us
+              </Link>.
             </p>
             <Link href="/register" className="btn-primary text-lg px-8 py-4">
-              Get Started
+              Start practising free
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
               </svg>
@@ -122,7 +122,7 @@ export default function FAQ() {
           </div>
 
           {/* Right - FAQ Items */}
-          <div className="space-y-4">
+          <div className="space-y-3">
             {faqs.map((faq, index) => (
               <FAQItem
                 key={faq.question}

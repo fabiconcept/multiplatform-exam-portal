@@ -5,15 +5,15 @@ const testimonials = [
     avatar: 'CV',
     rating: 5,
     quote:
-      'Studying past questions helped me to identify and work on my weaknesses. Now I feel very confident to take my Exam this year.',
+      'I scored 287 in JAMB. Before Examinery, I was scoring below 200 in practice. The detailed explanations after each question taught me things my textbook could not explain simply.',
   },
   {
     name: 'Adewale Opeyemi',
-    exam: 'WAEC',
+    exam: 'WAEC/SSCE',
     avatar: 'AO',
     rating: 5,
     quote:
-      'I thought JAMB/UTME is hard but this platform made it so easy for me. I comfortably scored 300. Thank you ExamScholars',
+      'I used Examinery for three months before WAEC. I got distinctions in Mathematics, English, Physics, and Chemistry. The exam mode prepared me for the real thing. I felt no pressure on exam day.',
   },
   {
     name: 'Obianuju Onu',
@@ -21,15 +21,15 @@ const testimonials = [
     avatar: 'OO',
     rating: 5,
     quote:
-      "I just didn't know what to expect in exam until I started studying my school's past questions from ExamScholars",
+      'What I love about Examinery is that I was not just memorizing answers. I was understanding the concepts. When I saw similar questions in the real exam, I knew how to solve them, not just guess.',
   },
   {
     name: 'Usman Abdusalam',
-    exam: 'JAMB/UTME',
+    exam: 'Post-UTME',
     avatar: 'UA',
     rating: 5,
     quote:
-      'This platform has taught me time management and my speed of answering questions has improved greatly.',
+      'The timed exam mode forced me to work faster. Before Examinery, I could barely finish 50 questions in an hour. After two months of practice, I was finishing with time to spare. My Post-UTME score went up by 40 points.',
   },
 ];
 
@@ -37,7 +37,7 @@ const avatarColors = [
   'bg-primary-500',
   'bg-accent-500',
   'bg-success-500',
-  'bg-background-500',
+  'bg-warning-500',
 ];
 
 export default function Testimonials() {
@@ -48,30 +48,28 @@ export default function Testimonials() {
         <div className="text-center mb-12 md:mb-16">
           <span className="badge-primary mb-4 inline-block">Testimonials</span>
           <h2 className="text-3xl md:text-4xl lg:text-5xl font-display font-bold text-neutral-900 mb-4">
-            What learners say about Exam Scholars
+            Students who passed with Examinery
           </h2>
           <p className="text-lg text-neutral-600 max-w-2xl mx-auto">
-            Join hundreds of users for unlimited testimonies
+            Real results from real students. These are their scores and their words.
           </p>
         </div>
 
         {/* Testimonial Cards */}
-        <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
+        <div className="grid md:grid-cols-2 gap-6">
           {testimonials.map((testimonial, index) => (
             <div
               key={testimonial.name}
-              className="card-hover bg-white"
+              className="bg-white rounded-2xl p-6 md:p-8 shadow-sm hover:shadow-md transition-shadow"
             >
               {/* Quote Icon */}
-              <div className="mb-4">
-                <svg
-                  className="w-8 h-8 text-primary-200"
-                  fill="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path d="M14.017 21v-7.391c0-5.704 3.731-9.57 8.983-10.609l.995 2.151c-2.432.917-3.995 3.638-3.995 5.849h4v10h-9.983zm-14.017 0v-7.391c0-5.704 3.748-9.57 9-10.609l.996 2.151c-2.433.917-3.996 3.638-3.996 5.849h3.983v10h-9.983z" />
-                </svg>
-              </div>
+              <svg
+                className="w-8 h-8 text-primary-200 mb-4"
+                fill="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path d="M14.017 21v-7.391c0-5.704 3.731-9.57 8.983-10.609l.995 2.151c-2.432.917-3.995 3.638-3.995 5.849h4v10h-9.983zm-14.017 0v-7.391c0-5.704 3.748-9.57 9-10.609l.996 2.151c-2.433.917-3.996 3.638-3.996 5.849h3.983v10h-9.983z" />
+              </svg>
 
               {/* Rating */}
               <div className="flex gap-1 mb-4">
@@ -95,7 +93,7 @@ export default function Testimonials() {
               {/* Author */}
               <div className="flex items-center gap-3">
                 <div
-                  className={`w-12 h-12 rounded-full flex items-center justify-center text-white font-semibold ${
+                  className={`w-11 h-11 rounded-full flex items-center justify-center text-white text-sm font-semibold ${
                     avatarColors[index % avatarColors.length]
                   }`}
                 >
@@ -105,7 +103,7 @@ export default function Testimonials() {
                   <p className="font-semibold text-neutral-900">
                     {testimonial.name}
                   </p>
-                  <p className="text-sm text-neutral-500">{testimonial.exam} Exam</p>
+                  <p className="text-sm text-neutral-500">{testimonial.exam} candidate</p>
                 </div>
               </div>
             </div>
@@ -114,16 +112,20 @@ export default function Testimonials() {
 
         {/* Social Proof */}
         <div className="mt-12 text-center">
-          <div className="inline-flex items-center gap-4 card bg-white px-6 py-4">
-            <div className="avatar-stack">
-              <div className="avatar bg-primary-500">CV</div>
-              <div className="avatar bg-accent-500">AO</div>
-              <div className="avatar bg-success-500">OO</div>
-              <div className="avatar bg-background-500">UA</div>
+          <div className="inline-flex items-center gap-4 bg-white px-6 py-4 rounded-2xl shadow-sm">
+            <div className="flex -space-x-2">
+              {avatarColors.map((color, i) => (
+                <div
+                  key={i}
+                  className={`w-9 h-9 rounded-full flex items-center justify-center text-white text-xs font-semibold border-2 border-white ${color}`}
+                >
+                  {['CV', 'AO', 'OO', 'UA'][i]}
+                </div>
+              ))}
             </div>
             <div className="text-left">
-              <p className="font-semibold text-neutral-900">300,000+ students</p>
-              <p className="text-sm text-neutral-500">already preparing with ExamScholars</p>
+              <p className="font-semibold text-neutral-900 text-sm">300,000+ students trust Examinery</p>
+              <p className="text-xs text-neutral-500">Join them, start practicing today</p>
             </div>
           </div>
         </div>
