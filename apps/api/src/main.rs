@@ -52,6 +52,12 @@ async fn main() -> std::io::Result<()> {
             .wrap(cors)
             .wrap(Logger::default())
             .service(
+                web::scope("/api")
+                    .route("/exams", web::get().to(handlers::auth::list_public_exams))
+                    .route("/exams/{id}/subjects", web::get().to(handlers::auth::list_public_exam_subjects))
+                    .route("/subjects/{id}/topics", web::get().to(handlers::auth::list_public_subject_topics))
+            )
+            .service(
                 web::scope("/api/auth")
                     .route("/register", web::post().to(handlers::auth::register))
                     .route("/login", web::post().to(handlers::auth::login))
@@ -83,6 +89,10 @@ async fn main() -> std::io::Result<()> {
                     .route("/stats", web::get().to(handlers::auth::get_user_stats))
                     .route("/activate", web::post().to(handlers::auth::activate_account))
                     .route("/activation-status", web::get().to(handlers::auth::check_activation_status))
+                    .route("/activation-key", web::get().to(handlers::auth::get_activation_key))
+                    .route("/payments/init", web::post().to(handlers::payments::init_payment))
+                    .route("/payments/verify", web::post().to(handlers::payments::verify_payment))
+                    .route("/payments/{reference}", web::get().to(handlers::payments::get_payment_status))
             )
             .service(
                 web::scope("/api/admin")
@@ -125,6 +135,7 @@ async fn main() -> std::io::Result<()> {
                     .route("/questions/{id}", web::put().to(handlers::admin::update_question))
                     .route("/questions/{id}", web::delete().to(handlers::admin::delete_question))
                     .route("/audit-log", web::get().to(handlers::admin::list_audit_log))
+                    .route("/finance", web::get().to(handlers::admin::list_payments))
             )
     })
     .bind("127.0.0.1:8080")?
