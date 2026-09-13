@@ -81,7 +81,7 @@ pub async fn register(
 
             HttpResponse::Created().json(AuthResponse {
                 token,
-                user: UserResponse::from(user),
+                user: UserResponse::from_user_with_verification(user, &data.db).await,
             })
         }
         Err(e) => {
@@ -120,7 +120,7 @@ pub async fn login(
                 }
                 HttpResponse::Ok().json(AuthResponse {
                     token,
-                    user: UserResponse::from(user),
+                    user: UserResponse::from_user_with_verification(user, &data.db).await,
                 })
             } else {
                 HttpResponse::Unauthorized().json(serde_json::json!({
@@ -157,7 +157,10 @@ pub async fn me(
         .await;
 
     match user {
-        Ok(Some(user)) => HttpResponse::Ok().json(UserResponse::from(user)),
+        Ok(Some(user)) => {
+            let resp = UserResponse::from_user_with_verification(user, &data.db).await;
+            HttpResponse::Ok().json(resp)
+        }
         Ok(None) => HttpResponse::NotFound().json(serde_json::json!({
             "error": "User not found"
         })),
@@ -456,16 +459,8 @@ pub async fn verify_email(
 
     match verification {
         Ok(Some(verification_record)) => {
-            let now = Utc::now().naive_utc();
-
             let _ = sqlx::query("UPDATE email_verifications SET verified = 1 WHERE id = ?")
                 .bind(&verification_record.id)
-                .execute(&data.db)
-                .await;
-
-            let _ = sqlx::query("UPDATE users SET is_active = 1, updated_at = ? WHERE id = ?")
-                .bind(now)
-                .bind(&verification_record.user_id)
                 .execute(&data.db)
                 .await;
 
@@ -698,7 +693,7 @@ pub async fn update_profile(
                 .await
                 .unwrap();
 
-            HttpResponse::Ok().json(UserResponse::from(user))
+            HttpResponse::Ok().json(UserResponse::from_user_with_verification(user, &data.db).await)
         }
         Err(e) => {
             log::error!("Update profile error: {}", e);
@@ -1048,9 +1043,10 @@ pub async fn activate_account(
                     .fetch_one(&data.db)
                     .await
                     {
+                        let resp = UserResponse::from_user_with_verification(updated_user, &data.db).await;
                         HttpResponse::Ok().json(serde_json::json!({
                             "message": "Account activated successfully",
-                            "user": UserResponse::from(updated_user),
+                            "user": resp,
                             "exam_type": key.exam_type,
                             "activated_at": now.to_string(),
                         }))
@@ -1112,6 +1108,46 @@ pub async fn check_activation_status(
 }
 
 // ---------------------------------------------------------------------------
+// Get user's activation key
+// ---------------------------------------------------------------------------
+
+pub async fn get_activation_key(
+    req: HttpRequest,
+    data: web::Data<AppState>,
+) -> HttpResponse {
+    let user_id = match get_user_id(&req) {
+        Some(id) => id,
+        None => return HttpResponse::Unauthorized().json(serde_json::json!({"error": "Unauthorized"})),
+    };
+
+    let key = sqlx::query_as::<_, ActivationKey>(
+        "SELECT * FROM activation_keys WHERE created_by = ? AND is_active = 1 ORDER BY created_at DESC LIMIT 1",
+    )
+    .bind(&user_id)
+    .fetch_optional(&data.db)
+    .await;
+
+    match key {
+        Ok(Some(k)) => HttpResponse::Ok().json(serde_json::json!({
+            "key_code": k.key_code,
+            "exam_type": k.exam_type,
+            "is_used": k.used_count >= k.max_uses,
+            "created_at": k.created_at,
+        })),
+        Ok(None) => HttpResponse::Ok().json(serde_json::json!({
+            "key_code": Option::<String>::None,
+            "message": "No activation key found",
+        })),
+        Err(e) => {
+            log::error!("Get activation key error: {}", e);
+            HttpResponse::InternalServerError().json(serde_json::json!({
+                "error": "Internal server error"
+            }))
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
 // Exam Sessions
 // ---------------------------------------------------------------------------
 
@@ -1135,10 +1171,30 @@ pub async fn create_exam_session(
     let id = Uuid::new_v4().to_string();
     let now = Utc::now().naive_utc();
     let mode = body.mode.as_deref().unwrap_or("study");
-    let question_count = body.question_count.unwrap_or(30);
+    let mut question_count = body.question_count.unwrap_or(30);
     let duration = body.duration_minutes.unwrap_or(60);
     let expires_at = now + chrono::Duration::minutes(duration as i64);
     let subjects_json = serde_json::to_string(&body.subjects.as_ref().unwrap_or(&vec![])).unwrap_or_else(|_| "[]".into());
+
+    // Cap questions for non-activated users
+    let is_active: (i32,) = sqlx::query_as("SELECT is_active FROM users WHERE id = ?")
+        .bind(&user_id)
+        .fetch_one(&data.db)
+        .await
+        .unwrap_or((0,));
+    if is_active.0 == 0 {
+        let free_limit: (i64,) = sqlx::query_as(
+            "SELECT COUNT(*) FROM question_usage WHERE user_id = ? AND DATE(created_at) = DATE('now')",
+        )
+        .bind(&user_id)
+        .fetch_one(&data.db)
+        .await
+        .unwrap_or((0,));
+        let remaining = (FREE_QUESTION_LIMIT - free_limit.0).max(0);
+        if remaining < question_count as i64 {
+            question_count = remaining as i32;
+        }
+    }
 
     let result = sqlx::query(
         "INSERT INTO exam_sessions (id, user_id, exam_type, mode, subjects, question_count, duration_minutes, status, started_at, expires_at) VALUES (?, ?, ?, ?, ?, ?, ?, 'in_progress', ?, ?)",
