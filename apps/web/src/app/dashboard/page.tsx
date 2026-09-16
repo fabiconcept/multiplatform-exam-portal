@@ -66,7 +66,7 @@ interface ExamSession {
   exam_type: string;
   mode: string;
   status: string;
-  started_at: string;
+  started_at: number;
   score: number | null;
   total_correct: number | null;
   total_answered: number | null;
@@ -483,7 +483,7 @@ export default function DashboardPage() {
                     </div>
                     <div className="min-w-0">
                       <p className="font-medium text-neutral-900 truncate">{session.exam_type}</p>
-                      <p className="text-sm text-neutral-500 capitalize">{session.mode} • {new Date(session.started_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</p>
+                      <p className="text-sm text-neutral-500 capitalize">{session.mode} &middot; {(typeof session.started_at === 'number' ? new Date(session.started_at * 1000) : new Date(session.started_at)).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</p>
                     </div>
                   </div>
                   <div className="text-right shrink-0 ml-3">

@@ -1,10 +1,10 @@
 'use client';
 
-import { sessionApi, SessionResult, ExamSession } from '@/lib/api';
+import { sessionApi, SessionResult, ExamSession, examApi, Exam } from '@/lib/api';
 import { useAuthStore } from '@/stores/auth';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
-import { useState, useEffect, Suspense } from 'react';
+import { useState, useEffect, Suspense, useMemo } from 'react';
 import toast from 'react-hot-toast';
 
 function ResultsContent() {
@@ -14,8 +14,11 @@ function ResultsContent() {
 
   const [results, setResults] = useState<SessionResult | null>(null);
   const [sessions, setSessions] = useState<ExamSession[]>([]);
+  const [exams, setExams] = useState<Exam[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [examFilter, setExamFilter] = useState('all');
+  const [classFilter, setClassFilter] = useState('all');
 
   useEffect(() => {
     if (!token) {
@@ -33,18 +36,59 @@ function ResultsContent() {
         .finally(() => setLoading(false));
     } else {
       sessionApi.listSessions(token)
-        .then(res => setSessions((res.sessions || []).filter(s => s.status === 'completed')))
+        .then(res => setSessions((res.sessions || []).filter(s => s.status === 'completed' || s.status === 'expired')))
         .catch(() => {})
         .finally(() => setLoading(false));
+      examApi.listExams(token)
+        .then(res => setExams(res.exams || []))
+        .catch(() => {});
     }
   }, [sessionId, token]);
 
-  const formatDate = (d: string) => new Date(d).toLocaleDateString('en-NG', {
-    month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit',
-  });
+  const formatDate = (d: number | string) => {
+    const date = typeof d === 'number' ? new Date(d * 1000) : new Date(d);
+    return date.toLocaleDateString('en-NG', { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+  };
+
+  const uniqueExamTypes = useMemo(() => {
+    const types = new Set(sessions.map(s => s.exam_type));
+    return Array.from(types);
+  }, [sessions]);
+
+  const uniqueClasses = useMemo(() => {
+    const classes = new Set<string>();
+    sessions.forEach(s => {
+      if (s.filter_values) {
+        try {
+          const fv = JSON.parse(typeof s.filter_values === 'string' ? s.filter_values : '{}');
+          if (fv.year_of_study) classes.add(fv.year_of_study);
+        } catch {}
+      }
+    });
+    return Array.from(classes).sort();
+  }, [sessions]);
 
   // ─── Results List View ──────────────────────────────────────────────
   if (!sessionId) {
+    const filteredSessions = sessions.filter(s => {
+      if (examFilter !== 'all' && s.exam_type !== examFilter) return false;
+      if (classFilter !== 'all') {
+        if (!s.filter_values) return false;
+        try {
+          const fv = JSON.parse(typeof s.filter_values === 'string' ? s.filter_values : '{}');
+          if (fv.year_of_study !== classFilter) return false;
+        } catch {
+          return false;
+        }
+      }
+      return true;
+    });
+
+    const getExamName = (slug: string) => {
+      const exam = exams.find(e => e.slug === slug || e.id === slug);
+      return exam?.name || slug;
+    };
+
     return (
       <div className="p-4 lg:p-8">
         <div className="mx-auto">
@@ -53,13 +97,43 @@ function ResultsContent() {
             <p className="text-neutral-600">Your exam and practice session results</p>
           </div>
 
+          {/* Filters */}
+          {(uniqueExamTypes.length > 1 || uniqueClasses.length > 0) && (
+            <div className="flex flex-wrap gap-3 mb-6">
+              {uniqueExamTypes.length > 1 && (
+                <select
+                  value={examFilter}
+                  onChange={(e) => setExamFilter(e.target.value)}
+                  className="px-4 py-2 bg-white border border-neutral-200 rounded-full text-sm font-medium text-neutral-700 focus:outline-none focus:ring-2 focus:ring-neutral-900"
+                >
+                  <option value="all">All Exams</option>
+                  {uniqueExamTypes.map(t => (
+                    <option key={t} value={t}>{getExamName(t)}</option>
+                  ))}
+                </select>
+              )}
+              {uniqueClasses.length > 0 && (
+                <select
+                  value={classFilter}
+                  onChange={(e) => setClassFilter(e.target.value)}
+                  className="px-4 py-2 bg-white border border-neutral-200 rounded-full text-sm font-medium text-neutral-700 focus:outline-none focus:ring-2 focus:ring-neutral-900"
+                >
+                  <option value="all">All Classes</option>
+                  {uniqueClasses.map(c => (
+                    <option key={c} value={c}>{c}</option>
+                  ))}
+                </select>
+              )}
+            </div>
+          )}
+
           {loading ? (
             <div className="space-y-3">
               {[1, 2, 3].map(i => (
                 <div key={i} className="h-24 bg-neutral-100 rounded-2xl animate-pulse" />
               ))}
             </div>
-          ) : sessions.length === 0 ? (
+          ) : filteredSessions.length === 0 ? (
             <div className="text-center py-20">
               <div className="w-16 h-16 bg-neutral-100 rounded-full flex items-center justify-center mx-auto mb-4">
                 <svg className="w-8 h-8 text-neutral-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -77,8 +151,16 @@ function ResultsContent() {
             </div>
           ) : (
             <div className="space-y-3">
-              {sessions.map(s => {
+              {filteredSessions.map(s => {
                 const score = Math.round(s.score ?? 0);
+                let className = '';
+                if (s.filter_values) {
+                  try {
+                    const fv = JSON.parse(typeof s.filter_values === 'string' ? s.filter_values : '{}');
+                    className = fv.year_of_study || '';
+                  } catch {}
+                }
+                const isExpired = s.status === 'expired';
                 return (
                   <Link
                     key={s.id}
@@ -96,9 +178,16 @@ function ResultsContent() {
                         </div>
                         <div>
                           <div className="flex items-center gap-2 mb-1">
-                            <span className="font-semibold text-neutral-900">{s.exam_type}</span>
-                            <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-700">
-                              Completed
+                            <span className="font-semibold text-neutral-900">{getExamName(s.exam_type)}</span>
+                            {className && (
+                              <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-700">
+                                {className}
+                              </span>
+                            )}
+                            <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
+                              isExpired ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'
+                            }`}>
+                              {isExpired ? 'Timed Out' : 'Completed'}
                             </span>
                           </div>
                           <p className="text-sm text-neutral-500">{s.mode} mode &middot; {s.question_count} questions &middot; {s.duration_minutes} min</p>
@@ -179,6 +268,7 @@ function ResultsContent() {
   const timeSpent = results.session.time_spent_seconds ?? 0;
   const minutes = Math.floor(timeSpent / 60);
   const seconds = timeSpent % 60;
+  const isExpired = results.session.status === 'expired';
 
   const scoreColor =
     percentage >= 70 ? 'text-success-500'
@@ -211,6 +301,21 @@ function ResultsContent() {
             </p>
           </div>
         </div>
+
+        {/* Timed Out Banner */}
+        {isExpired && (
+          <div className="bg-red-50 border-2 border-red-200 rounded-2xl p-4 flex items-center gap-3">
+            <div className="w-10 h-10 bg-red-100 rounded-full flex items-center justify-center shrink-0">
+              <svg className="w-5 h-5 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+            </div>
+            <div>
+              <p className="font-semibold text-red-800">Session Timed Out</p>
+              <p className="text-sm text-red-600">This exam was auto-submitted when the timer expired. Unanswered questions were marked incorrect.</p>
+            </div>
+          </div>
+        )}
 
         {/* Score Card */}
         <div className="bg-gradient-to-br from-neutral-900 to-neutral-800 rounded-3xl p-6 lg:p-8 text-white">

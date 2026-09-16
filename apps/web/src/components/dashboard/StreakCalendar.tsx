@@ -3,11 +3,11 @@
 import { useMemo } from 'react';
 
 interface StreakCalendarProps {
-  sessions: { started_at: string; status: string }[];
+  sessions: { started_at: number | string; status: string }[];
 }
 
-function toDateStr(utcStr: string): string {
-  const d = new Date(utcStr.replace(' ', 'T') + 'Z');
+function toDateStr(ts: number | string): string {
+  const d = typeof ts === 'number' ? new Date(ts * 1000) : new Date(ts);
   return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}-${String(d.getUTCDate()).padStart(2, '0')}`;
 }
 
