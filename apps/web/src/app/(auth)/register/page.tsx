@@ -15,7 +15,7 @@ export default function RegisterPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const router = useRouter();
-  const { register: registerUser, isLoading } = useAuthStore();
+  const { register: registerUser, isLoading, error: authError } = useAuthStore();
   const [exams, setExams] = useState<string[]>([]);
 
   const {
@@ -46,7 +46,7 @@ export default function RegisterPage() {
         showToast.success('Account created!', 'Please check your email to verify your account.');
         setTimeout(() => router.push(`/check-email?email=${encodeURIComponent(data.email)}`), 1000);
       } else {
-        showToast.error('Registration failed', 'This email may already be in use. Please try again.');
+        showToast.error('Registration failed', authError || 'This email may already be in use. Please try again.');
       }
     } catch {
       showToast.dismiss(loadingToast);

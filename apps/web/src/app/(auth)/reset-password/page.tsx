@@ -16,8 +16,8 @@ const resetPasswordSchema = z.object({
     .min(1, 'Password is required')
     .min(8, 'Password must be at least 8 characters')
     .regex(/[A-Z]/, 'Password must contain at least one uppercase letter')
-    .regex(/[a-z]/, 'Password must contain at least one lowercase letter')
-    .regex(/[0-9]/, 'Password must contain at least one number'),
+    .regex(/[0-9]/, 'Password must contain at least one number')
+    .regex(/[^A-Za-z0-9]/, 'Password must contain at least one special character'),
   confirmPassword: z.string().min(1, 'Please confirm your password'),
 }).refine((data) => data.password === data.confirmPassword, {
   message: "Passwords don't match",
@@ -66,9 +66,9 @@ function ResetPasswordForm() {
       setIsSuccess(true);
       showToast.success('Password reset successful', 'Your password has been updated. Redirecting to login...');
       setTimeout(() => router.push('/login'), 2000);
-    } catch {
+    } catch (e: any) {
       showToast.dismiss(loadingToast);
-      showToast.error('Reset failed', 'The reset link may have expired. Please request a new one.');
+      showToast.error('Reset failed', e?.message || 'The reset link may have expired. Please request a new one.');
     } finally {
       setIsLoading(false);
     }

@@ -1,9 +1,15 @@
 use actix_web::{dev::ServiceRequest, Error, HttpResponse};
 use actix_web::error::ErrorUnauthorized;
-use jsonwebtoken::{decode, DecodingKey, Validation};
+use jsonwebtoken::{decode, DecodingKey, Validation, Algorithm};
 use sqlx::SqlitePool;
 
 use crate::models::Claims;
+
+pub fn hs256_validation() -> Validation {
+    let mut v = Validation::new(Algorithm::HS256);
+    v.set_required_spec_claims(&["exp"]);
+    v
+}
 
 pub fn extract_claims(req: &ServiceRequest, secret: &str) -> Result<Claims, Error> {
     let auth_header = req.headers().get("Authorization")
@@ -18,7 +24,7 @@ pub fn extract_claims(req: &ServiceRequest, secret: &str) -> Result<Claims, Erro
     let claims = decode::<Claims>(
         token,
         &DecodingKey::from_secret(secret.as_bytes()),
-        &Validation::default(),
+        &hs256_validation(),
     )
     .map_err(|_| ErrorUnauthorized("Invalid token"))?
     .claims;

@@ -38,6 +38,18 @@ export async function api<T = unknown>(endpoint: string, options: ApiOptions = {
   const data = await res.json();
 
   if (!res.ok) {
+    if (res.status === 401) {
+      if (typeof window !== 'undefined') {
+        localStorage.removeItem('exam-scholars-auth');
+        document.cookie = 'token=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/';
+        window.location.href = '/login';
+      }
+      throw new ApiError(401, data.error || 'Session expired. Please log in again.', data);
+    }
+    if (res.status === 429) {
+      const retryAfter = parseInt(res.headers.get('Retry-After') || '5', 10);
+      throw new ApiError(429, `Too many requests. Please wait ${retryAfter} seconds before trying again.`, { retry_after: retryAfter });
+    }
     if (res.status === 403) {
       const message = data.message || data.error || 'Your account has been deactivated. Please contact support.';
       throw new ApiError(403, message, data);
@@ -155,6 +167,7 @@ export type Exam = {
   max_subjects: number;
   is_active: boolean;
   icon_url?: string;
+  filters?: string;
   created_at: string;
   subject_count?: number;
   question_count?: number;
@@ -179,6 +192,14 @@ export type Topic = {
   created_at: string;
 };
 
+export type ExamFilterValues = {
+  configured_filters: string[];
+  year?: string[];
+  year_of_study?: string[];
+  topic?: { id: string; name: string }[];
+  difficulty?: string[];
+};
+
 export const examApi = {
   listExams: (token: string) =>
     api<{ exams: Exam[]; total: number }>('/auth/exams', { token }),
@@ -188,6 +209,9 @@ export const examApi = {
 
   listSubjectTopics: (token: string, subjectId: string) =>
     api<{ topics: Topic[]; total: number }>(`/auth/subjects/${subjectId}/topics`, { token }),
+
+  getExamFilterValues: (token: string, examId: string) =>
+    api<ExamFilterValues>(`/auth/exams/${examId}/filters`, { token }),
 };
 
 export const publicExamApi = {
@@ -199,6 +223,9 @@ export const publicExamApi = {
 
   listSubjectTopics: (subjectId: string) =>
     api<{ topics: Topic[]; total: number }>(`/subjects/${subjectId}/topics`),
+
+  getExamFilterValues: (examId: string) =>
+    api<ExamFilterValues>(`/exams/${examId}/filters`),
 };
 
 // ---------------------------------------------------------------------------
@@ -214,13 +241,14 @@ export type ExamSession = {
   question_count: number;
   duration_minutes: number;
   status: string;
-  started_at: string;
-  completed_at: string | null;
-  expires_at: string | null;
+  started_at: number;
+  completed_at: number | null;
+  expires_at: number | null;
   score: number | null;
   total_correct: number | null;
   total_answered: number | null;
   time_spent_seconds: number | null;
+  filter_values?: string | null;
 };
 
 export type SessionQuestion = {
@@ -235,8 +263,6 @@ export type SessionQuestion = {
   difficulty: string;
   user_answer: string | null;
   is_correct: boolean | null;
-  explanation?: string | null;
-  correct_answer?: string;
 };
 
 export type SessionResult = {
@@ -269,7 +295,7 @@ export type BookmarkedQuestion = {
 };
 
 export const sessionApi = {
-  createSession: (token: string, body: { exam_type: string; mode?: string; subjects?: string[]; question_count?: number; duration_minutes?: number }) =>
+  createSession: (token: string, body: { exam_type: string; mode?: string; subjects?: string[]; question_count?: number; duration_minutes?: number; filter_values?: Record<string, unknown> }) =>
     api<ExamSession>('/auth/exam-sessions', { method: 'POST', body, token }),
 
   getSession: (token: string, sessionId: string) =>

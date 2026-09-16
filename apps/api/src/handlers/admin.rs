@@ -21,10 +21,29 @@ fn extract_admin_id(req: &HttpRequest, secret: &str) -> Option<String> {
     let token_data = decode::<crate::models::Claims>(
         token,
         &DecodingKey::from_secret(secret.as_bytes()),
-        &Validation::default(),
+        &crate::middleware::auth::hs256_validation(),
     )
     .ok()?;
     Some(token_data.claims.sub)
+}
+
+async fn require_admin(req: &HttpRequest, data: &web::Data<AppState>) -> Result<String, HttpResponse> {
+    let user_id = extract_admin_id(req, &data.config.jwt_secret)
+        .ok_or_else(|| HttpResponse::Unauthorized().json(serde_json::json!({"error": "Unauthorized"})))?;
+
+    let user = sqlx::query_as::<_, crate::models::User>(
+        "SELECT * FROM users WHERE id = ? AND is_active = 1",
+    )
+    .bind(&user_id)
+    .fetch_optional(&data.db)
+    .await
+    .map_err(|_| HttpResponse::InternalServerError().json(serde_json::json!({"error": "Internal server error"})))?;
+
+    match user {
+        Some(u) if u.role == "admin" || u.role == "super_admin" => Ok(user_id),
+        Some(_) => Err(HttpResponse::Forbidden().json(serde_json::json!({"error": "Admin access required"}))),
+        None => Err(HttpResponse::Unauthorized().json(serde_json::json!({"error": "Invalid token"}))),
+    }
 }
 
 fn create_token(user_id: &str, secret: &str, expires_in: i64) -> String {
@@ -320,9 +339,13 @@ pub async fn list_users(
 // ---------------------------------------------------------------------------
 
 pub async fn get_user(
+    req: HttpRequest,
     data: web::Data<AppState>,
     path: web::Path<String>,
 ) -> HttpResponse {
+    if let Err(e) = require_admin(&req, &data).await {
+        return e;
+    }
     let user_id = path.into_inner();
     let user = sqlx::query_as::<_, User>("SELECT * FROM users WHERE id = ?")
         .bind(&user_id)
@@ -822,9 +845,13 @@ pub async fn generate_keys(
 // ---------------------------------------------------------------------------
 
 pub async fn list_keys(
+    req: HttpRequest,
     data: web::Data<AppState>,
     query: web::Query<PaginationParams>,
 ) -> HttpResponse {
+    if let Err(e) = require_admin(&req, &data).await {
+        return e;
+    }
     let page = query.page.unwrap_or(1).max(1);
     let limit = query.limit.unwrap_or(20).min(100);
     let offset = (page - 1) * limit;
@@ -918,7 +945,10 @@ pub async fn delete_key(
 // 13. Key stats
 // ---------------------------------------------------------------------------
 
-pub async fn key_stats(data: web::Data<AppState>) -> HttpResponse {
+pub async fn key_stats(req: HttpRequest, data: web::Data<AppState>) -> HttpResponse {
+    if let Err(e) = require_admin(&req, &data).await {
+        return e;
+    }
     let total = sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM activation_keys")
         .fetch_one(&data.db)
         .await
@@ -957,9 +987,12 @@ pub async fn key_stats(data: web::Data<AppState>) -> HttpResponse {
 // 14. List exams
 // ---------------------------------------------------------------------------
 
-pub async fn list_exams(data: web::Data<AppState>) -> HttpResponse {
+pub async fn list_exams(req: HttpRequest, data: web::Data<AppState>) -> HttpResponse {
+    if let Err(e) = require_admin(&req, &data).await {
+        return e;
+    }
     let exams = sqlx::query_as::<_, ExamWithCounts>(
-        "SELECT e.id, e.name, e.slug, e.description, e.total_questions, e.time_limit_minutes, e.min_subjects, e.max_subjects, e.is_active, e.icon_url, e.created_at, (SELECT COUNT(*) FROM subjects WHERE exam_id = e.id AND is_active = 1) AS subject_count, (SELECT COUNT(*) FROM questions WHERE exam_type = e.slug AND is_active = 1) AS question_count FROM exams e ORDER BY e.created_at DESC",
+        "SELECT e.id, e.name, e.slug, e.description, e.total_questions, e.time_limit_minutes, e.min_subjects, e.max_subjects, e.is_active, e.icon_url, e.filters, e.created_at, (SELECT COUNT(*) FROM subjects WHERE exam_id = e.id AND is_active = 1) AS subject_count, (SELECT COUNT(*) FROM questions WHERE exam_type = e.slug AND is_active = 1) AS question_count FROM exams e ORDER BY e.created_at DESC",
     )
     .fetch_all(&data.db)
     .await;
@@ -991,8 +1024,10 @@ pub async fn create_exam(
     let now = Utc::now().naive_utc();
     let slug = slugify(&body.name);
 
+    let filters_json = serde_json::to_string(&body.filters.as_ref().unwrap_or(&vec![])).unwrap_or_else(|_| "[]".into());
+
     let result = sqlx::query(
-        "INSERT INTO exams (id, name, slug, description, total_questions, time_limit_minutes, min_subjects, max_subjects, is_active, icon_url, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?)",
+        "INSERT INTO exams (id, name, slug, description, total_questions, time_limit_minutes, min_subjects, max_subjects, is_active, icon_url, filters, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?)",
     )
     .bind(&id)
     .bind(&body.name)
@@ -1003,6 +1038,7 @@ pub async fn create_exam(
     .bind(body.min_subjects.unwrap_or(1))
     .bind(body.max_subjects.unwrap_or(0))
     .bind(&body.icon_url)
+    .bind(&filters_json)
     .bind(now)
     .bind(now)
     .execute(&data.db)
@@ -1058,9 +1094,10 @@ pub async fn update_exam(
     let now = Utc::now().naive_utc();
 
     let slug = body.name.as_ref().map(|n| slugify(n));
+    let filters_json = body.filters.as_ref().map(|f| serde_json::to_string(f).unwrap_or_else(|_| "[]".into()));
 
     let result = sqlx::query(
-        "UPDATE exams SET name = COALESCE(?, name), slug = COALESCE(?, slug), description = COALESCE(?, description), total_questions = COALESCE(?, total_questions), time_limit_minutes = COALESCE(?, time_limit_minutes), min_subjects = COALESCE(?, min_subjects), max_subjects = COALESCE(?, max_subjects), is_active = COALESCE(?, is_active), icon_url = COALESCE(?, icon_url), updated_at = ? WHERE id = ?",
+        "UPDATE exams SET name = COALESCE(?, name), slug = COALESCE(?, slug), description = COALESCE(?, description), total_questions = COALESCE(?, total_questions), time_limit_minutes = COALESCE(?, time_limit_minutes), min_subjects = COALESCE(?, min_subjects), max_subjects = COALESCE(?, max_subjects), is_active = COALESCE(?, is_active), icon_url = COALESCE(?, icon_url), filters = COALESCE(?, filters), updated_at = ? WHERE id = ?",
     )
     .bind(&body.name)
     .bind(&slug)
@@ -1071,6 +1108,7 @@ pub async fn update_exam(
     .bind(body.max_subjects)
     .bind(body.is_active)
     .bind(&body.icon_url)
+    .bind(&filters_json)
     .bind(now)
     .bind(&exam_id)
     .execute(&data.db)
@@ -1162,13 +1200,97 @@ pub async fn delete_exam(
 }
 
 // ---------------------------------------------------------------------------
+// 17b. Get available filter values for an exam
+// ---------------------------------------------------------------------------
+
+pub async fn get_exam_filter_values(
+    data: web::Data<AppState>,
+    path: web::Path<String>,
+) -> HttpResponse {
+    let exam_id = path.into_inner();
+
+    // Get the exam's configured filters
+    let exam = sqlx::query_as::<_, Exam>("SELECT * FROM exams WHERE id = ? AND is_active = 1")
+        .bind(&exam_id)
+        .fetch_optional(&data.db)
+        .await;
+
+    let exam = match exam {
+        Ok(Some(e)) => e,
+        _ => return HttpResponse::NotFound().json(serde_json::json!({"error": "Exam not found"})),
+    };
+
+    let configured_filters: Vec<String> = serde_json::from_str(exam.filters.as_deref().unwrap_or("[]")).unwrap_or_default();
+
+    let mut result = serde_json::Map::new();
+
+    for filter_type in &configured_filters {
+        match filter_type.as_str() {
+            "year" => {
+                let rows: Vec<(Option<String>,)> = sqlx::query_as(
+                    "SELECT DISTINCT year FROM questions q JOIN subjects s ON q.subject_id = s.id WHERE s.exam_id = ? AND q.is_active = 1 AND q.year IS NOT NULL AND q.year != '' ORDER BY year DESC",
+                )
+                .bind(&exam_id)
+                .fetch_all(&data.db)
+                .await
+                .unwrap_or_default();
+                let values: Vec<String> = rows.into_iter().filter_map(|r| r.0).collect();
+                result.insert("year".into(), serde_json::to_value(values).unwrap());
+            }
+            "year_of_study" => {
+                let rows: Vec<(Option<String>,)> = sqlx::query_as(
+                    "SELECT DISTINCT year_of_study FROM questions q JOIN subjects s ON q.subject_id = s.id WHERE s.exam_id = ? AND q.is_active = 1 AND q.year_of_study IS NOT NULL AND q.year_of_study != '' ORDER BY year_of_study",
+                )
+                .bind(&exam_id)
+                .fetch_all(&data.db)
+                .await
+                .unwrap_or_default();
+                let values: Vec<String> = rows.into_iter().filter_map(|r| r.0).collect();
+                result.insert("year_of_study".into(), serde_json::to_value(values).unwrap());
+            }
+            "topic" => {
+                let rows: Vec<(String, String)> = sqlx::query_as(
+                    "SELECT DISTINCT t.id, t.name FROM topics t JOIN subjects s ON t.subject_id = s.id JOIN questions q ON q.topic_id = t.id WHERE s.exam_id = ? AND t.is_active = 1 AND q.is_active = 1 ORDER BY t.name",
+                )
+                .bind(&exam_id)
+                .fetch_all(&data.db)
+                .await
+                .unwrap_or_default();
+                let values: Vec<serde_json::Value> = rows.into_iter().map(|(id, name)| serde_json::json!({"id": id, "name": name})).collect();
+                result.insert("topic".into(), serde_json::to_value(values).unwrap());
+            }
+            "difficulty" => {
+                let rows: Vec<(String,)> = sqlx::query_as(
+                    "SELECT DISTINCT difficulty FROM questions q JOIN subjects s ON q.subject_id = s.id WHERE s.exam_id = ? AND q.is_active = 1 ORDER BY difficulty",
+                )
+                .bind(&exam_id)
+                .fetch_all(&data.db)
+                .await
+                .unwrap_or_default();
+                let values: Vec<String> = rows.into_iter().map(|r| r.0).collect();
+                result.insert("difficulty".into(), serde_json::to_value(values).unwrap());
+            }
+            _ => {}
+        }
+    }
+
+    result.insert("configured_filters".into(), serde_json::to_value(&configured_filters).unwrap());
+
+    HttpResponse::Ok().json(serde_json::Value::Object(result))
+}
+
+// ---------------------------------------------------------------------------
 // 18. List subjects
 // ---------------------------------------------------------------------------
 
 pub async fn list_subjects(
+    req: HttpRequest,
     data: web::Data<AppState>,
     path: web::Path<String>,
 ) -> HttpResponse {
+    if let Err(e) = require_admin(&req, &data).await {
+        return e;
+    }
     let exam_id = path.into_inner();
 
     let subjects = sqlx::query_as::<_, Subject>(
@@ -1242,9 +1364,13 @@ pub async fn create_subject(
 // ---------------------------------------------------------------------------
 
 pub async fn list_topics(
+    req: HttpRequest,
     data: web::Data<AppState>,
     path: web::Path<String>,
 ) -> HttpResponse {
+    if let Err(e) = require_admin(&req, &data).await {
+        return e;
+    }
     let subject_id = path.into_inner();
 
     let topics = sqlx::query_as::<_, Topic>(
@@ -1453,9 +1579,13 @@ pub async fn delete_topic(
 // ---------------------------------------------------------------------------
 
 pub async fn list_questions(
+    req: HttpRequest,
     data: web::Data<AppState>,
     query: web::Query<QuestionParams>,
 ) -> HttpResponse {
+    if let Err(e) = require_admin(&req, &data).await {
+        return e;
+    }
     let page = query.page.unwrap_or(1).max(1);
     let limit = query.limit.unwrap_or(20).min(100);
     let offset = (page - 1) * limit;
@@ -1463,16 +1593,22 @@ pub async fn list_questions(
     let exam_type = query.exam_type.as_deref().unwrap_or("");
     let subject_id = query.subject_id.as_deref().unwrap_or("");
     let difficulty = query.difficulty.as_deref().unwrap_or("");
+    let year = query.year.as_deref().unwrap_or("");
+    let year_of_study = query.year_of_study.as_deref().unwrap_or("");
     let search = query.search.as_deref().unwrap_or("");
 
     let total = sqlx::query_scalar::<_, i64>(
-        "SELECT COUNT(*) FROM questions WHERE (exam_type LIKE '%' || ? || '%') AND (? = '' OR subject_id = ?) AND (? = '' OR difficulty = ?) AND (? = '' OR question_text LIKE '%' || ? || '%')",
+        "SELECT COUNT(*) FROM questions WHERE (exam_type LIKE '%' || ? || '%') AND (? = '' OR subject_id = ?) AND (? = '' OR difficulty = ?) AND (? = '' OR year = ?) AND (? = '' OR year_of_study = ?) AND (? = '' OR question_text LIKE '%' || ? || '%')",
     )
     .bind(exam_type)
     .bind(subject_id)
     .bind(subject_id)
     .bind(difficulty)
     .bind(difficulty)
+    .bind(year)
+    .bind(year)
+    .bind(year_of_study)
+    .bind(year_of_study)
     .bind(search)
     .bind(search)
     .fetch_one(&data.db)
@@ -1480,13 +1616,17 @@ pub async fn list_questions(
     .unwrap_or(0);
 
     let questions = sqlx::query_as::<_, Question>(
-        "SELECT * FROM questions WHERE (exam_type LIKE '%' || ? || '%') AND (? = '' OR subject_id = ?) AND (? = '' OR difficulty = ?) AND (? = '' OR question_text LIKE '%' || ? || '%') ORDER BY created_at DESC LIMIT ? OFFSET ?",
+        "SELECT * FROM questions WHERE (exam_type LIKE '%' || ? || '%') AND (? = '' OR subject_id = ?) AND (? = '' OR difficulty = ?) AND (? = '' OR year = ?) AND (? = '' OR year_of_study = ?) AND (? = '' OR question_text LIKE '%' || ? || '%') ORDER BY created_at DESC LIMIT ? OFFSET ?",
     )
     .bind(exam_type)
     .bind(subject_id)
     .bind(subject_id)
     .bind(difficulty)
     .bind(difficulty)
+    .bind(year)
+    .bind(year)
+    .bind(year_of_study)
+    .bind(year_of_study)
     .bind(search)
     .bind(search)
     .bind(limit as i64)
@@ -1523,7 +1663,7 @@ pub async fn create_question(
     let now = Utc::now().naive_utc();
 
     let result = sqlx::query(
-        "INSERT INTO questions (id, subject_id, topic_id, exam_type, question_text, option_a, option_b, option_c, option_d, correct_answer, explanation, difficulty, is_active, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?)",
+        "INSERT INTO questions (id, subject_id, topic_id, exam_type, question_text, option_a, option_b, option_c, option_d, correct_answer, explanation, difficulty, is_active, year, year_of_study, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?)",
     )
     .bind(&id)
     .bind(&body.subject_id)
@@ -1537,6 +1677,8 @@ pub async fn create_question(
     .bind(&body.correct_answer)
     .bind(&body.explanation)
     .bind(body.difficulty.as_deref().unwrap_or("medium"))
+    .bind(&body.year)
+    .bind(&body.year_of_study)
     .bind(now)
     .bind(now)
     .execute(&data.db)
@@ -1574,7 +1716,7 @@ pub async fn update_question(
     let now = Utc::now().naive_utc();
 
     let result = sqlx::query(
-        "UPDATE questions SET subject_id = COALESCE(?, subject_id), topic_id = COALESCE(?, topic_id), exam_type = COALESCE(?, exam_type), question_text = COALESCE(?, question_text), option_a = COALESCE(?, option_a), option_b = COALESCE(?, option_b), option_c = COALESCE(?, option_c), option_d = COALESCE(?, option_d), correct_answer = COALESCE(?, correct_answer), explanation = COALESCE(?, explanation), difficulty = COALESCE(?, difficulty), is_active = COALESCE(?, is_active), updated_at = ? WHERE id = ?",
+        "UPDATE questions SET subject_id = COALESCE(?, subject_id), topic_id = COALESCE(?, topic_id), exam_type = COALESCE(?, exam_type), question_text = COALESCE(?, question_text), option_a = COALESCE(?, option_a), option_b = COALESCE(?, option_b), option_c = COALESCE(?, option_c), option_d = COALESCE(?, option_d), correct_answer = COALESCE(?, correct_answer), explanation = COALESCE(?, explanation), difficulty = COALESCE(?, difficulty), is_active = COALESCE(?, is_active), year = COALESCE(?, year), year_of_study = COALESCE(?, year_of_study), updated_at = ? WHERE id = ?",
     )
     .bind(&body.subject_id)
     .bind(&body.topic_id)
@@ -1588,6 +1730,8 @@ pub async fn update_question(
     .bind(&body.explanation)
     .bind(&body.difficulty)
     .bind(body.is_active)
+    .bind(&body.year)
+    .bind(&body.year_of_study)
     .bind(now)
     .bind(&question_id)
     .execute(&data.db)
@@ -1649,6 +1793,9 @@ pub async fn import_questions_csv(
     data: web::Data<AppState>,
     body: web::Json<ImportCsvRequest>,
 ) -> HttpResponse {
+    if let Err(e) = require_admin(&req, &data).await {
+        return e;
+    }
     let csv_data = body.csv.trim();
     let lines: Vec<&str> = csv_data.lines().collect();
     if lines.len() < 2 {
@@ -1868,9 +2015,13 @@ pub struct ImportTopicsResult {
 }
 
 pub async fn import_topics_csv(
+    req: HttpRequest,
     data: web::Data<AppState>,
     body: web::Json<ImportTopicsCsvRequest>,
 ) -> HttpResponse {
+    if let Err(e) = require_admin(&req, &data).await {
+        return e;
+    }
     let csv_data = body.csv.trim();
     let lines: Vec<&str> = csv_data.lines().collect();
     if lines.len() < 2 {
@@ -1932,9 +2083,13 @@ pub async fn import_topics_csv(
 }
 
 pub async fn import_topics_json(
+    req: HttpRequest,
     data: web::Data<AppState>,
     body: web::Json<ImportTopicsJsonRequest>,
 ) -> HttpResponse {
+    if let Err(e) = require_admin(&req, &data).await {
+        return e;
+    }
     let mut success: u32 = 0;
     let mut failed: u32 = 0;
     let mut errors: Vec<ImportError> = Vec::new();
@@ -1992,6 +2147,9 @@ pub async fn import_questions_json(
     data: web::Data<AppState>,
     body: web::Json<ImportQuestionsRequest>,
 ) -> HttpResponse {
+    if let Err(e) = require_admin(&req, &data).await {
+        return e;
+    }
     let mut success: u32 = 0;
     let mut failed: u32 = 0;
     let mut errors: Vec<ImportError> = Vec::new();
@@ -2140,9 +2298,13 @@ pub async fn import_questions_json(
 // ---------------------------------------------------------------------------
 
 pub async fn export_questions(
+    req: HttpRequest,
     data: web::Data<AppState>,
     query: web::Query<QuestionParams>,
 ) -> HttpResponse {
+    if let Err(e) = require_admin(&req, &data).await {
+        return e;
+    }
     let exam_type = query.exam_type.as_deref().unwrap_or("");
     let subject_id = query.subject_id.as_deref().unwrap_or("");
     let difficulty = query.difficulty.as_deref().unwrap_or("");
@@ -2202,7 +2364,10 @@ pub async fn export_questions(
 // 28. Question stats
 // ---------------------------------------------------------------------------
 
-pub async fn question_stats(data: web::Data<AppState>) -> HttpResponse {
+pub async fn question_stats(req: HttpRequest, data: web::Data<AppState>) -> HttpResponse {
+    if let Err(e) = require_admin(&req, &data).await {
+        return e;
+    }
     let total = sqlx::query_scalar::<_, i64>(
         "SELECT COUNT(*) FROM questions WHERE is_active = 1",
     )
@@ -2235,7 +2400,10 @@ pub async fn question_stats(data: web::Data<AppState>) -> HttpResponse {
 // 29. Dashboard stats
 // ---------------------------------------------------------------------------
 
-pub async fn dashboard_stats(data: web::Data<AppState>) -> HttpResponse {
+pub async fn dashboard_stats(req: HttpRequest, data: web::Data<AppState>) -> HttpResponse {
+    if let Err(e) = require_admin(&req, &data).await {
+        return e;
+    }
     let total_users = sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM users")
         .fetch_one(&data.db)
         .await
@@ -2338,9 +2506,13 @@ pub async fn dashboard_stats(data: web::Data<AppState>) -> HttpResponse {
 // ---------------------------------------------------------------------------
 
 pub async fn list_audit_log(
+    req: HttpRequest,
     data: web::Data<AppState>,
     query: web::Query<AuditLogParams>,
 ) -> HttpResponse {
+    if let Err(e) = require_admin(&req, &data).await {
+        return e;
+    }
     let page = query.page.unwrap_or(1).max(1);
     let limit = query.limit.unwrap_or(20).min(100);
     let offset = (page - 1) * limit;
@@ -2430,9 +2602,9 @@ pub async fn list_payments(
     data: web::Data<AppState>,
     query: web::Query<FinanceParams>,
 ) -> HttpResponse {
-    let admin_id = match extract_admin_id(&req, &data.config.jwt_secret) {
-        Some(id) => id,
-        None => return HttpResponse::Unauthorized().json(serde_json::json!({"error": "Unauthorized"})),
+    let _admin_id = match require_admin(&req, &data).await {
+        Ok(id) => id,
+        Err(e) => return e,
     };
 
     let page = query.page.unwrap_or(1).max(1);

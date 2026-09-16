@@ -36,7 +36,11 @@ export const useAuthStore = create<AuthState>()(
         }
       },
 
-      logout: () => {
+      logout: async () => {
+        const { token } = get();
+        if (token) {
+          try { await adminApi.logout(token); } catch {}
+        }
         set({ admin: null, token: null, error: null });
       },
 

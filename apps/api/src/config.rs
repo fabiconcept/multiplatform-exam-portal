@@ -12,7 +12,7 @@ pub struct Config {
 impl Config {
     pub fn from_env() -> Self {
         Self {
-            jwt_secret: env::var("JWT_SECRET").unwrap_or_else(|_| "exam-scholars-secret-key-change-in-production".to_string()),
+            jwt_secret: env::var("JWT_SECRET").expect("JWT_SECRET environment variable must be set"),
             jwt_expires_in: env::var("JWT_EXPIRES_IN")
                 .unwrap_or_else(|_| "86400".to_string())
                 .parse()

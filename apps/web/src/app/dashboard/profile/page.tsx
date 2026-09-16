@@ -63,8 +63,20 @@ export default function ProfilePage() {
       toast.error('Passwords do not match');
       return;
     }
-    if (passwords.new_password.length < 6) {
-      toast.error('Password must be at least 6 characters');
+    if (passwords.new_password.length < 8) {
+      toast.error('Password must be at least 8 characters');
+      return;
+    }
+    if (!/[A-Z]/.test(passwords.new_password)) {
+      toast.error('Password must contain at least one uppercase letter');
+      return;
+    }
+    if (!/[0-9]/.test(passwords.new_password)) {
+      toast.error('Password must contain at least one number');
+      return;
+    }
+    if (!/[^A-Za-z0-9]/.test(passwords.new_password)) {
+      toast.error('Password must contain at least one special character');
       return;
     }
     setChangingPassword(true);

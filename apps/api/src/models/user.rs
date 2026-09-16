@@ -1,6 +1,25 @@
 use chrono::NaiveDateTime;
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Serialize, Serializer};
 use sqlx::FromRow;
+
+/// Serialize NaiveDateTime as Unix timestamp (seconds since epoch).
+/// JavaScript can parse this unambiguously with `new Date(ts * 1000)`.
+fn serialize_naive_datetime<S: Serializer>(dt: &NaiveDateTime, serializer: S) -> Result<S::Ok, S::Error> {
+    use chrono::TimeZone;
+    let utc = chrono::Utc.from_utc_datetime(dt);
+    serializer.serialize_i64(utc.timestamp())
+}
+
+fn serialize_optional_naive_datetime<S: Serializer>(dt: &Option<NaiveDateTime>, serializer: S) -> Result<S::Ok, S::Error> {
+    match dt {
+        Some(dt) => {
+            use chrono::TimeZone;
+            let utc = chrono::Utc.from_utc_datetime(dt);
+            serializer.serialize_i64(utc.timestamp())
+        }
+        None => serializer.serialize_none(),
+    }
+}
 
 #[derive(Debug, Serialize, Deserialize, FromRow)]
 pub struct User {
@@ -218,14 +237,18 @@ pub struct ExamSession {
     pub question_count: i32,
     pub duration_minutes: i32,
     pub status: String,
+    #[serde(serialize_with = "serialize_naive_datetime")]
     pub started_at: NaiveDateTime,
+    #[serde(serialize_with = "serialize_optional_naive_datetime", skip_serializing_if = "Option::is_none")]
     pub completed_at: Option<NaiveDateTime>,
+    #[serde(serialize_with = "serialize_optional_naive_datetime", skip_serializing_if = "Option::is_none")]
     pub expires_at: Option<NaiveDateTime>,
     pub score: Option<f64>,
     pub total_correct: Option<i32>,
     pub total_answered: Option<i32>,
     pub time_spent_seconds: Option<i32>,
     pub question_order: Option<String>,
+    pub filter_values: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -235,6 +258,7 @@ pub struct CreateSessionRequest {
     pub subjects: Option<Vec<String>>,
     pub question_count: Option<i32>,
     pub duration_minutes: Option<i32>,
+    pub filter_values: Option<serde_json::Value>,
 }
 
 #[derive(Debug, Serialize)]
@@ -251,8 +275,6 @@ pub struct SessionQuestion {
     pub option_b: String,
     pub option_c: String,
     pub option_d: String,
-    pub explanation: Option<String>,
-    pub correct_answer: String,
     pub subject_name: Option<String>,
     pub topic_name: Option<String>,
     pub difficulty: String,

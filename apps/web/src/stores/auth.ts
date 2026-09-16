@@ -22,7 +22,7 @@ interface AuthState {
   login: (email: string, password: string, deviceInfo?: string) => Promise<boolean>;
   register: (data: { name: string; email: string; password: string; phone?: string; school?: string; target_exam?: string }) => Promise<boolean>;
   logout: () => void;
-  loadUser: () => Promise<void>;
+  loadUser: () => Promise<boolean>;
   clearError: () => void;
 }
 
@@ -69,16 +69,18 @@ export const useAuthStore = create<AuthState>()(
 
       loadUser: async () => {
         const { token } = get();
-        if (!token) return;
+        if (!token) return false;
 
         set({ isLoading: true });
         try {
           const user = await authApi.me(token);
           setCookie('token', token, 30);
           set({ user, isLoading: false });
+          return true;
         } catch (e) {
           removeCookie('token');
           set({ user: null, token: null, isLoading: false });
+          return false;
         }
       },
 

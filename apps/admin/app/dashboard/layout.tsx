@@ -108,8 +108,8 @@ export default function AdminDashboardLayout({ children }: { children: React.Rea
   const pageTitle = getPageTitle(pathname)
   const breadcrumbs = getBreadcrumbs(pathname)
 
-  const handleLogout = () => {
-    logout()
+  const handleLogout = async () => {
+    await logout()
     toast.success('Logged out successfully')
     router.push('/')
   }

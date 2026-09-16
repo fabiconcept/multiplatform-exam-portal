@@ -1,7 +1,9 @@
 'use client';
 
 import { useEffect, useState, createContext, useContext, type ReactNode } from 'react';
+import { useRouter, usePathname } from 'next/navigation';
 import { useAuthStore } from '@/stores/auth';
+import toast from 'react-hot-toast';
 
 interface AuthContextType {
   isAuthenticated: boolean;
@@ -27,6 +29,8 @@ function setCookie(name: string, value: string, days: number) {
 export function AuthProvider({ children }: { children: ReactNode }) {
   const { user, token, isLoading, loadUser } = useAuthStore();
   const [hydrated, setHydrated] = useState(false);
+  const router = useRouter();
+  const pathname = usePathname();
 
   useEffect(() => {
     setHydrated(true);
@@ -38,7 +42,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (token) {
       setCookie('token', token, 30);
       if (!user) {
-        loadUser();
+        loadUser().then((ok) => {
+          if (!ok) {
+            const publicRoutes = ['/', '/login', '/register', '/exams', '/download', '/pricing', '/contact', '/about'];
+            const isPublic = publicRoutes.some((r) => pathname === r || pathname.startsWith('/exams/'));
+            if (!isPublic) {
+              toast.error('Session expired. Please log in again.');
+              router.push(`/login?redirect=${encodeURIComponent(pathname)}`);
+            }
+          }
+        });
       }
     } else {
       const hasCookie = document.cookie.split(';').some(c => c.trim().startsWith('token='));
@@ -46,7 +59,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         useAuthStore.setState({ isLoading: false });
       }
     }
-  }, [hydrated, token, user, loadUser]);
+  }, [hydrated, token, user, loadUser, router, pathname]);
 
   return (
     <AuthContext.Provider
