@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from 'next';
-import { inter, poppins } from '../styles/fonts';
+import { montserrat, montserratDisplay } from '../styles/fonts';
 import '../styles/globals.css';
 import { Providers } from './providers';
 import { ServiceWorkerRegistration, InstallPrompt } from '@/components/pwa';
@@ -90,7 +90,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   };
 
   return (
-    <html lang="en" className={`${inter.variable} ${poppins.variable}`}>
+    <html lang="en" className={`${montserrat.variable} ${montserratDisplay.variable}`}>
       <head>
         <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
         <meta name="apple-mobile-web-app-capable" content="yes" />

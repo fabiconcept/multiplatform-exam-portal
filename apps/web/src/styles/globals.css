@@ -4,8 +4,8 @@
 
 @layer base {
   :root {
-    --font-display: 'Inter', system-ui, sans-serif;
-    --font-body: 'Inter', system-ui, sans-serif;
+    --font-display: 'Montserrat', system-ui, sans-serif;
+    --font-body: 'Montserrat', system-ui, sans-serif;
     
     --color-primary: #F5C518;
     --color-primary-dark: #D4A80F;
