@@ -43,12 +43,20 @@ export default function ExamsPage() {
 
   const [examDialogOpen, setExamDialogOpen] = useState(false);
   const [editingExam, setEditingExam] = useState<Exam | null>(null);
+  const AVAILABLE_FILTERS = [
+    { id: 'year', label: 'Year', description: 'Exam year (e.g. 2023, 2024)' },
+    { id: 'topic', label: 'Topic', description: 'Filter by topic within subjects' },
+    { id: 'year_of_study', label: 'Year of Study / Class', description: 'e.g. SS1, SS2, SS3, JSS1' },
+    { id: 'difficulty', label: 'Difficulty', description: 'Easy, Medium, Hard' },
+  ];
+
   const [examForm, setExamForm] = useState({
     name: '',
     description: '',
     total_questions: 20,
     time_limit_minutes: 30,
     icon_url: '',
+    filters: [] as string[],
   });
   const [examSaving, setExamSaving] = useState(false);
 
@@ -145,18 +153,20 @@ export default function ExamsPage() {
 
   function handleCreateExam() {
     setEditingExam(null);
-    setExamForm({ name: '', description: '', total_questions: 20, time_limit_minutes: 30, icon_url: '' });
+    setExamForm({ name: '', description: '', total_questions: 20, time_limit_minutes: 30, icon_url: '', filters: [] });
     setExamDialogOpen(true);
   }
 
   function handleEditExam(exam: Exam) {
     setEditingExam(exam);
+    const parsedFilters: string[] = (() => { try { return JSON.parse(exam.filters || '[]'); } catch { return []; } })();
     setExamForm({
       name: exam.name,
       description: exam.description || '',
       total_questions: exam.total_questions,
       time_limit_minutes: exam.time_limit_minutes,
       icon_url: exam.icon_url || '',
+      filters: parsedFilters,
     });
     setExamDialogOpen(true);
   }
@@ -172,6 +182,7 @@ export default function ExamsPage() {
           total_questions: examForm.total_questions,
           time_limit_minutes: examForm.time_limit_minutes,
           icon_url: examForm.icon_url.trim() || undefined,
+          filters: examForm.filters,
         });
         toast.success('Exam updated');
       } else {
@@ -181,6 +192,7 @@ export default function ExamsPage() {
           total_questions: examForm.total_questions,
           time_limit_minutes: examForm.time_limit_minutes,
           icon_url: examForm.icon_url.trim() || undefined,
+          filters: examForm.filters,
         });
         toast.success('Exam created');
       }
@@ -323,6 +335,20 @@ export default function ExamsPage() {
                 {exam.description && (
                   <p className="line-clamp-2 text-sm text-muted-foreground">{exam.description}</p>
                 )}
+                {(() => {
+                  const filters: string[] = (() => { try { return JSON.parse(exam.filters || '[]'); } catch { return []; } })();
+                  if (filters.length === 0) return null;
+                  const filterLabels: Record<string, string> = { year: 'Year', topic: 'Topic', year_of_study: 'Year of Study', difficulty: 'Difficulty' };
+                  return (
+                    <div className="flex flex-wrap gap-1">
+                      {filters.map((f) => (
+                        <Badge key={f} variant="secondary" className="text-[10px] px-1.5 py-0">
+                          {filterLabels[f] || f}
+                        </Badge>
+                      ))}
+                    </div>
+                  );
+                })()}
               </CardContent>
               <CardFooter className="gap-2">
                 <Button
@@ -562,6 +588,38 @@ export default function ExamsPage() {
                   <span className="text-xs text-muted-foreground">Preview</span>
                 </div>
               )}
+            </div>
+            <div className="space-y-2">
+              <Label>Question Filters</Label>
+              <p className="text-xs text-muted-foreground">Choose which filters users can apply when practicing questions from this exam.</p>
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                {AVAILABLE_FILTERS.map((f) => (
+                  <label
+                    key={f.id}
+                    className={cn(
+                      'flex items-start gap-3 rounded-lg border p-3 cursor-pointer transition-colors',
+                      examForm.filters.includes(f.id) ? 'border-primary bg-primary/5' : 'hover:bg-muted/50'
+                    )}
+                  >
+                    <input
+                      type="checkbox"
+                      className="mt-0.5 h-4 w-4 rounded border-gray-300"
+                      checked={examForm.filters.includes(f.id)}
+                      onChange={(e) => {
+                        if (e.target.checked) {
+                          setExamForm({ ...examForm, filters: [...examForm.filters, f.id] });
+                        } else {
+                          setExamForm({ ...examForm, filters: examForm.filters.filter((x) => x !== f.id) });
+                        }
+                      }}
+                    />
+                    <div className="min-w-0">
+                      <span className="text-sm font-medium">{f.label}</span>
+                      <p className="text-xs text-muted-foreground mt-0.5">{f.description}</p>
+                    </div>
+                  </label>
+                ))}
+              </div>
             </div>
           </div>
           <DialogFooter>

@@ -76,6 +76,8 @@ interface Question {
   correct_answer: string
   explanation?: string
   difficulty: string
+  year?: string
+  year_of_study?: string
   is_active: boolean
   created_at: string
   updated_at: string
@@ -116,6 +118,8 @@ export default function ExamQuestionsPage() {
 
   const [activeSubject, setActiveSubject] = useState('__all__')
   const [difficultyFilter, setDifficultyFilter] = useState('')
+  const [yearFilter, setYearFilter] = useState('')
+  const [yearOfStudyFilter, setYearOfStudyFilter] = useState('')
   const [searchQuery, setSearchQuery] = useState('')
   const [currentPage, setCurrentPage] = useState(1)
   const pageSize = 20
@@ -135,6 +139,8 @@ export default function ExamQuestionsPage() {
     correct_answer: 'A',
     explanation: '',
     difficulty: 'medium',
+    year: '',
+    year_of_study: '',
   })
   const [formTopics, setFormTopics] = useState<Topic[]>([])
   const [saving, setSaving] = useState(false)
@@ -150,6 +156,8 @@ export default function ExamQuestionsPage() {
   const exportRef = useRef<HTMLDivElement>(null)
 
   const [subjectQuestionCounts, setSubjectQuestionCounts] = useState<Record<string, number>>({})
+  const [availableYears, setAvailableYears] = useState<string[]>([])
+  const [availableYearOfStudy, setAvailableYearOfStudy] = useState<string[]>([])
 
   useEffect(() => {
     if (!token) return
@@ -158,6 +166,10 @@ export default function ExamQuestionsPage() {
       if (exam) {
         setExamId(exam.id)
         setExamName(exam.name)
+        adminApi.getExamFilterValues(token, exam.id).then((filters) => {
+          setAvailableYears(filters.year || [])
+          setAvailableYearOfStudy(filters.year_of_study || [])
+        }).catch(() => {})
       }
     }).catch(() => {})
   }, [token, slug])
@@ -169,7 +181,7 @@ export default function ExamQuestionsPage() {
     }).catch(() => {})
   }, [token, examId])
 
-  const fetchQuestions = (page: number, subject: string, difficulty: string, search: string) => {
+  const fetchQuestions = (page: number, subject: string, difficulty: string, year: string, yearOfStudy: string, search: string) => {
     if (!token || !examId) return
     setLoading(true)
     const params: Record<string, string | number> = {
@@ -179,6 +191,8 @@ export default function ExamQuestionsPage() {
     }
     if (subject !== '__all__') params.subject_id = subject
     if (difficulty) params.difficulty = difficulty
+    if (year) params.year = year
+    if (yearOfStudy) params.year_of_study = yearOfStudy
     if (search) params.search = search
 
     adminApi.listQuestions(token, params as any)
@@ -195,8 +209,8 @@ export default function ExamQuestionsPage() {
 
   useEffect(() => {
     if (!token || !examId) return
-    fetchQuestions(currentPage, activeSubject, difficultyFilter, searchQuery)
-  }, [token, examId, activeSubject, difficultyFilter, searchQuery, currentPage])
+    fetchQuestions(currentPage, activeSubject, difficultyFilter, yearFilter, yearOfStudyFilter, searchQuery)
+  }, [token, examId, activeSubject, difficultyFilter, yearFilter, yearOfStudyFilter, searchQuery, currentPage])
 
   useEffect(() => {
     if (!token || !examId) return
@@ -247,6 +261,8 @@ export default function ExamQuestionsPage() {
       correct_answer: 'A',
       explanation: '',
       difficulty: 'medium',
+      year: '',
+      year_of_study: '',
     })
     setFormTopics([])
     setShowQuestionDialog(true)
@@ -265,6 +281,8 @@ export default function ExamQuestionsPage() {
       correct_answer: q.correct_answer,
       explanation: q.explanation || '',
       difficulty: q.difficulty,
+      year: q.year || '',
+      year_of_study: q.year_of_study || '',
     })
     if (q.subject_id) fetchTopics(q.subject_id)
     setShowQuestionDialog(true)
@@ -293,6 +311,8 @@ export default function ExamQuestionsPage() {
         ...questionForm,
         topic_id: questionForm.topic_id || undefined,
         explanation: questionForm.explanation || undefined,
+        year: questionForm.year || undefined,
+        year_of_study: questionForm.year_of_study || undefined,
       }
 
       if (editingQuestion) {
@@ -399,7 +419,7 @@ export default function ExamQuestionsPage() {
   }
 
   const refreshQuestions = () => {
-    fetchQuestions(currentPage, activeSubject, difficultyFilter, searchQuery)
+    fetchQuestions(currentPage, activeSubject, difficultyFilter, yearFilter, yearOfStudyFilter, searchQuery)
   }
 
   const toggleSelectAll = () => {
@@ -557,6 +577,46 @@ export default function ExamQuestionsPage() {
             <SelectItem value="hard">Hard</SelectItem>
           </SelectContent>
         </Select>
+
+        {availableYears.length > 0 && (
+          <Select
+            value={yearFilter}
+            onValueChange={(v) => {
+              setYearFilter(v === 'all' ? '' : v)
+              setCurrentPage(1)
+            }}
+          >
+            <SelectTrigger className="w-[170px]">
+              <SelectValue placeholder="All Years" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Years</SelectItem>
+              {availableYears.map((y) => (
+                <SelectItem key={y} value={y}>{y}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
+
+        {availableYearOfStudy.length > 0 && (
+          <Select
+            value={yearOfStudyFilter}
+            onValueChange={(v) => {
+              setYearOfStudyFilter(v === 'all' ? '' : v)
+              setCurrentPage(1)
+            }}
+          >
+            <SelectTrigger className="w-[200px]">
+              <SelectValue placeholder="All Classes" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Classes</SelectItem>
+              {availableYearOfStudy.map((y) => (
+                <SelectItem key={y} value={y}>{y}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
 
         <div className="relative w-64">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
@@ -793,6 +853,33 @@ export default function ExamQuestionsPage() {
                   <SelectItem value="hard">Hard</SelectItem>
                 </SelectContent>
               </Select>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>
+                  Year <span className="text-muted-foreground">(optional)</span>
+                </Label>
+                <Input
+                  value={questionForm.year}
+                  onChange={(e) =>
+                    setQuestionForm((prev) => ({ ...prev, year: e.target.value }))
+                  }
+                  placeholder="e.g. 2024"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>
+                  Year of Study <span className="text-muted-foreground">(optional)</span>
+                </Label>
+                <Input
+                  value={questionForm.year_of_study}
+                  onChange={(e) =>
+                    setQuestionForm((prev) => ({ ...prev, year_of_study: e.target.value }))
+                  }
+                  placeholder="e.g. SS3, JSS2"
+                />
+              </div>
             </div>
 
             <div className="space-y-2">

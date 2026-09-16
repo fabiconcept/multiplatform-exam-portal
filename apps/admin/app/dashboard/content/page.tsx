@@ -61,6 +61,7 @@ export default function ContentPage() {
   const [formMinSubjects, setFormMinSubjects] = useState(1)
   const [formMaxSubjects, setFormMaxSubjects] = useState(0)
   const [formIconUrl, setFormIconUrl] = useState('')
+  const [formFilters, setFormFilters] = useState<string[]>([])
   const [saving, setSaving] = useState(false)
 
   const [deleteConfirm, setDeleteConfirm] = useState<{ id: string; type: string; name: string } | null>(null)
@@ -145,6 +146,7 @@ export default function ContentPage() {
     setFormMinSubjects(1)
     setFormMaxSubjects(0)
     setFormIconUrl('')
+    setFormFilters([])
     setDialogOpen(true)
   }
 
@@ -157,6 +159,11 @@ export default function ContentPage() {
     setFormMinSubjects(item.min_subjects ?? 1)
     setFormMaxSubjects(item.max_subjects ?? 0)
     setFormIconUrl(item.icon_url || '')
+    try {
+      setFormFilters(JSON.parse(item.filters || '[]'))
+    } catch {
+      setFormFilters([])
+    }
     setDialogOpen(true)
   }
 
@@ -167,10 +174,10 @@ export default function ContentPage() {
     try {
       if (dialogType === 'exam') {
         if (editingItem) {
-          await adminApi.updateExam(token, editingItem.id, { name: formName.trim(), description: formDescription.trim() || undefined, min_subjects: formMinSubjects, max_subjects: formMaxSubjects, icon_url: formIconUrl.trim() || undefined })
+          await adminApi.updateExam(token, editingItem.id, { name: formName.trim(), description: formDescription.trim() || undefined, min_subjects: formMinSubjects, max_subjects: formMaxSubjects, icon_url: formIconUrl.trim() || undefined, filters: formFilters })
           toast.success('Exam updated')
         } else {
-          await adminApi.createExam(token, { name: formName.trim(), description: formDescription.trim() || undefined, min_subjects: formMinSubjects, max_subjects: formMaxSubjects, icon_url: formIconUrl.trim() || undefined })
+          await adminApi.createExam(token, { name: formName.trim(), description: formDescription.trim() || undefined, min_subjects: formMinSubjects, max_subjects: formMaxSubjects, icon_url: formIconUrl.trim() || undefined, filters: formFilters })
           toast.success('Exam created')
         }
       } else if (dialogType === 'subject') {
@@ -361,9 +368,19 @@ export default function ContentPage() {
                 )}
                 <div className="flex-1 min-w-0">
                   <h3 className="font-semibold text-sm">{exam.name}</h3>
-                  <div className="flex items-center gap-2 mt-0.5">
+                  <div className="flex items-center gap-2 mt-0.5 flex-wrap">
                     <Badge variant="secondary" className="text-xs">{exam.subjectCount} subjects</Badge>
                     <Badge variant="outline" className="text-xs">{exam.questionCount} questions</Badge>
+                    {(() => {
+                      try {
+                        const filters: string[] = JSON.parse(exam.filters || '[]');
+                        if (filters.length === 0) return null;
+                        const labels: Record<string, string> = { year: 'Year', topic: 'Topic', year_of_study: 'Class', difficulty: 'Difficulty' };
+                        return filters.map(f => (
+                          <Badge key={f} variant="outline" className="text-[10px] px-1.5 py-0 text-primary">{labels[f] || f}</Badge>
+                        ));
+                      } catch { return null; }
+                    })()}
                   </div>
                 </div>
                 <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
@@ -569,6 +586,45 @@ export default function ContentPage() {
                     <span className="text-xs text-muted-foreground">Preview</span>
                   </div>
                 )}
+              </div>
+            )}
+            {dialogType === 'exam' && (
+              <div className="space-y-2">
+                <Label>Question Filters</Label>
+                <p className="text-xs text-muted-foreground">Choose which filters users can apply when practicing questions from this exam.</p>
+                <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                  {[
+                    { id: 'year', label: 'Year', description: 'Exam year (e.g. 2023, 2024)' },
+                    { id: 'topic', label: 'Topic', description: 'Filter by topic within subjects' },
+                    { id: 'year_of_study', label: 'Class / Year of Study', description: 'e.g. SS1, SS2, SS3, JSS1' },
+                    { id: 'difficulty', label: 'Difficulty', description: 'Easy, Medium, Hard' },
+                  ].map((f) => (
+                    <label
+                      key={f.id}
+                      className={cn(
+                        'flex items-start gap-3 rounded-lg border p-3 cursor-pointer transition-colors',
+                        formFilters.includes(f.id) ? 'border-primary bg-primary/5' : 'hover:bg-muted/50'
+                      )}
+                    >
+                      <input
+                        type="checkbox"
+                        className="mt-0.5 h-4 w-4 rounded border-gray-300"
+                        checked={formFilters.includes(f.id)}
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            setFormFilters([...formFilters, f.id])
+                          } else {
+                            setFormFilters(formFilters.filter((x) => x !== f.id))
+                          }
+                        }}
+                      />
+                      <div className="min-w-0">
+                        <span className="text-sm font-medium">{f.label}</span>
+                        <p className="text-xs text-muted-foreground mt-0.5">{f.description}</p>
+                      </div>
+                    </label>
+                  ))}
+                </div>
               </div>
             )}
             {dialogType !== 'topic' && (
