@@ -1,0 +1,2 @@
+-- Migration 019: columns already applied manually.
+-- exams.filters, questions.year, questions.year_of_study, exam_sessions.filter_values
