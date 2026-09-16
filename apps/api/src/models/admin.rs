@@ -116,6 +116,7 @@ pub struct CreateExamRequest {
     pub min_subjects: Option<i32>,
     pub max_subjects: Option<i32>,
     pub icon_url: Option<String>,
+    pub filters: Option<Vec<String>>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -128,6 +129,7 @@ pub struct UpdateExamRequest {
     pub max_subjects: Option<i32>,
     pub is_active: Option<bool>,
     pub icon_url: Option<String>,
+    pub filters: Option<Vec<String>>,
 }
 
 #[derive(Debug, Serialize, FromRow)]
@@ -142,6 +144,7 @@ pub struct Exam {
     pub max_subjects: i32,
     pub is_active: bool,
     pub icon_url: Option<String>,
+    pub filters: Option<String>,
     pub created_at: NaiveDateTime,
     pub updated_at: NaiveDateTime,
 }
@@ -158,6 +161,7 @@ pub struct ExamWithCounts {
     pub max_subjects: i32,
     pub is_active: bool,
     pub icon_url: Option<String>,
+    pub filters: Option<String>,
     pub created_at: NaiveDateTime,
     pub subject_count: i64,
     pub question_count: i64,
@@ -211,6 +215,8 @@ pub struct CreateQuestionRequest {
     pub correct_answer: String,
     pub explanation: Option<String>,
     pub difficulty: Option<String>,
+    pub year: Option<String>,
+    pub year_of_study: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -227,6 +233,8 @@ pub struct UpdateQuestionRequest {
     pub explanation: Option<String>,
     pub difficulty: Option<String>,
     pub is_active: Option<bool>,
+    pub year: Option<String>,
+    pub year_of_study: Option<String>,
 }
 
 #[derive(Debug, Serialize, FromRow)]
@@ -244,6 +252,8 @@ pub struct Question {
     pub explanation: Option<String>,
     pub difficulty: String,
     pub is_active: bool,
+    pub year: Option<String>,
+    pub year_of_study: Option<String>,
     pub created_at: NaiveDateTime,
     pub updated_at: NaiveDateTime,
 }
@@ -385,6 +395,8 @@ pub struct QuestionParams {
     pub exam_type: Option<String>,
     pub subject_id: Option<String>,
     pub difficulty: Option<String>,
+    pub year: Option<String>,
+    pub year_of_study: Option<String>,
     pub search: Option<String>,
 }
 

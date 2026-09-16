@@ -9,12 +9,39 @@ use crate::AppState;
 use crate::models::{RegisterRequest, LoginRequest, AuthResponse, UserResponse, User, Claims, ForgotPasswordRequest, ResetPasswordRequest, PasswordReset, EmailVerification, VerifyEmailRequest, SendVerificationRequest, TrackUsageRequest, UsageStatusResponse, UpdateProfileRequest, UpdatePasswordRequest, UpdateSettingsRequest, UserSettings, ExamWithCounts, Subject, Topic, ExamSession, CreateSessionRequest, SessionResponse, SessionQuestion, SubmitAnswerRequest, SubmitAllRequest, SessionResult, SubjectResult, DifficultyResult, ExamAnswer, Bookmark, CreateBookmarkRequest, BookmarkedQuestion, UserStats, ActivateRequest, ActivationResponse, ActivationKey};
 use crate::middleware::auth::require_active_user;
 
+fn validate_password(password: &str) -> Result<(), &'static str> {
+    if password.len() < 8 {
+        return Err("Password must be at least 8 characters long");
+    }
+    if !password.chars().any(|c| c.is_uppercase()) {
+        return Err("Password must contain at least one uppercase letter");
+    }
+    if !password.chars().any(|c| c.is_ascii_digit()) {
+        return Err("Password must contain at least one number");
+    }
+    if !password.chars().any(|c| !c.is_alphanumeric()) {
+        return Err("Password must contain at least one special character");
+    }
+    Ok(())
+}
+
 pub async fn register(
     data: web::Data<AppState>,
     body: web::Json<RegisterRequest>,
 ) -> HttpResponse {
+    let email = body.email.trim().to_lowercase();
+    if !email.contains('@') || !email.contains('.') || email.len() < 5 || email.len() > 254 {
+        return HttpResponse::BadRequest().json(serde_json::json!({
+            "error": "Invalid email format"
+        }));
+    }
+
+    if let Err(msg) = validate_password(&body.password) {
+        return HttpResponse::BadRequest().json(serde_json::json!({ "error": msg }));
+    }
+
     let existing = sqlx::query_as::<_, User>("SELECT * FROM users WHERE email = ?")
-        .bind(&body.email)
+        .bind(&email)
         .fetch_optional(&data.db)
         .await;
 
@@ -39,7 +66,7 @@ pub async fn register(
     )
     .bind(&id)
     .bind(&body.name)
-    .bind(&body.email)
+    .bind(&email)
     .bind(&password_hash)
     .bind(&body.phone)
     .bind(&body.school)
@@ -189,7 +216,7 @@ fn extract_user_id(req: &HttpRequest, secret: &str) -> Option<String> {
     let token_data = decode::<Claims>(
         token,
         &DecodingKey::from_secret(secret.as_bytes()),
-        &Validation::default(),
+        &crate::middleware::auth::hs256_validation(),
     ).ok()?;
 
     Some(token_data.claims.sub)
@@ -255,6 +282,9 @@ pub async fn reset_password(
 
     match reset {
         Ok(Some(reset_record)) => {
+            if let Err(msg) = validate_password(&body.password) {
+                return HttpResponse::BadRequest().json(serde_json::json!({ "error": msg }));
+            }
             let password_hash = match hash(&body.password, DEFAULT_COST) {
                 Ok(h) => h,
                 Err(_) => return HttpResponse::InternalServerError().json(serde_json::json!({
@@ -729,6 +759,10 @@ pub async fn update_password(
                 }));
             }
 
+            if let Err(msg) = validate_password(&body.new_password) {
+                return HttpResponse::BadRequest().json(serde_json::json!({ "error": msg }));
+            }
+
             let password_hash = match hash(&body.new_password, DEFAULT_COST) {
                 Ok(h) => h,
                 Err(_) => return HttpResponse::InternalServerError().json(serde_json::json!({
@@ -882,7 +916,7 @@ pub async fn update_settings(
 
 pub async fn list_public_exams(data: web::Data<AppState>) -> HttpResponse {
     let exams = sqlx::query_as::<_, ExamWithCounts>(
-        "SELECT e.id, e.name, e.slug, e.description, e.total_questions, e.time_limit_minutes, e.min_subjects, e.max_subjects, e.is_active, e.icon_url, e.created_at, (SELECT COUNT(*) FROM subjects WHERE exam_id = e.id AND is_active = 1) AS subject_count, (SELECT COUNT(*) FROM questions WHERE exam_type = e.slug AND is_active = 1) AS question_count FROM exams e WHERE e.is_active = 1 ORDER BY e.created_at DESC",
+        "SELECT e.id, e.name, e.slug, e.description, e.total_questions, e.time_limit_minutes, e.min_subjects, e.max_subjects, e.is_active, e.icon_url, e.filters, e.created_at, (SELECT COUNT(*) FROM subjects WHERE exam_id = e.id AND is_active = 1) AS subject_count, (SELECT COUNT(*) FROM questions WHERE exam_type = e.slug AND is_active = 1) AS question_count FROM exams e WHERE e.is_active = 1 ORDER BY e.created_at DESC",
     )
     .fetch_all(&data.db)
     .await;
@@ -959,11 +993,10 @@ pub async fn list_public_subject_topics(
 // Helper: extract user ID from JWT
 // ---------------------------------------------------------------------------
 
-fn get_user_id(req: &HttpRequest) -> Option<String> {
+fn get_user_id(req: &HttpRequest, secret: &str) -> Option<String> {
     let auth = req.headers().get("Authorization")?;
     let val = auth.to_str().ok()?;
     let token = val.strip_prefix("Bearer ")?;
-    let secret = std::env::var("JWT_SECRET").unwrap_or_else(|_| "exam-scholars-secret-key-change-in-production".into());
     let token_data = jsonwebtoken::decode::<Claims>(
         token,
         &jsonwebtoken::DecodingKey::from_secret(secret.as_bytes()),
@@ -982,7 +1015,7 @@ pub async fn activate_account(
     data: web::Data<AppState>,
     body: web::Json<ActivateRequest>,
 ) -> HttpResponse {
-    let user_id = match get_user_id(&req) {
+    let user_id = match get_user_id(&req, &data.config.jwt_secret) {
         Some(id) => id,
         None => return HttpResponse::Unauthorized().json(serde_json::json!({"error": "Unauthorized"})),
     };
@@ -1008,11 +1041,27 @@ pub async fn activate_account(
                 }
             }
 
-            // Check if key has remaining uses
-            if key.used_count >= key.max_uses {
-                return HttpResponse::BadRequest().json(serde_json::json!({
-                    "error": "Activation key has no remaining uses"
-                }));
+            // Atomic check and increment to prevent race condition
+            let increment_result = sqlx::query(
+                "UPDATE activation_keys SET used_count = used_count + 1 WHERE id = ? AND used_count < max_uses AND is_active = 1",
+            )
+            .bind(&key.id)
+            .execute(&data.db)
+            .await;
+
+            match increment_result {
+                Ok(result) if result.rows_affected() == 0 => {
+                    return HttpResponse::BadRequest().json(serde_json::json!({
+                        "error": "Activation key has no remaining uses"
+                    }));
+                }
+                Ok(_) => {}
+                Err(e) => {
+                    log::error!("Activation key increment error: {}", e);
+                    return HttpResponse::InternalServerError().json(serde_json::json!({
+                        "error": "Internal server error"
+                    }));
+                }
             }
 
             // Activate user
@@ -1027,14 +1076,6 @@ pub async fn activate_account(
 
             match result {
                 Ok(_) => {
-                    // Increment used_count on the key
-                    let _ = sqlx::query(
-                        "UPDATE activation_keys SET used_count = used_count + 1 WHERE id = ?",
-                    )
-                    .bind(&key.id)
-                    .execute(&data.db)
-                    .await;
-
                     // Fetch updated user
                     if let Ok(updated_user) = sqlx::query_as::<_, User>(
                         "SELECT * FROM users WHERE id = ?",
@@ -1082,7 +1123,7 @@ pub async fn check_activation_status(
     req: HttpRequest,
     data: web::Data<AppState>,
 ) -> HttpResponse {
-    let user_id = match get_user_id(&req) {
+    let user_id = match get_user_id(&req, &data.config.jwt_secret) {
         Some(id) => id,
         None => return HttpResponse::Unauthorized().json(serde_json::json!({"error": "Unauthorized"})),
     };
@@ -1115,7 +1156,7 @@ pub async fn get_activation_key(
     req: HttpRequest,
     data: web::Data<AppState>,
 ) -> HttpResponse {
-    let user_id = match get_user_id(&req) {
+    let user_id = match get_user_id(&req, &data.config.jwt_secret) {
         Some(id) => id,
         None => return HttpResponse::Unauthorized().json(serde_json::json!({"error": "Unauthorized"})),
     };
@@ -1156,7 +1197,7 @@ pub async fn create_exam_session(
     data: web::Data<AppState>,
     body: web::Json<CreateSessionRequest>,
 ) -> HttpResponse {
-    let user_id = match get_user_id(&req) {
+    let user_id = match get_user_id(&req, &data.config.jwt_secret) {
         Some(id) => id,
         None => return HttpResponse::Unauthorized().json(serde_json::json!({"error": "Unauthorized"})),
     };
@@ -1175,6 +1216,7 @@ pub async fn create_exam_session(
     let duration = body.duration_minutes.unwrap_or(60);
     let expires_at = now + chrono::Duration::minutes(duration as i64);
     let subjects_json = serde_json::to_string(&body.subjects.as_ref().unwrap_or(&vec![])).unwrap_or_else(|_| "[]".into());
+    let filter_values_json = body.filter_values.as_ref().map(|v| v.to_string());
 
     // Cap questions for non-activated users
     let is_active: (i32,) = sqlx::query_as("SELECT is_active FROM users WHERE id = ?")
@@ -1197,7 +1239,7 @@ pub async fn create_exam_session(
     }
 
     let result = sqlx::query(
-        "INSERT INTO exam_sessions (id, user_id, exam_type, mode, subjects, question_count, duration_minutes, status, started_at, expires_at) VALUES (?, ?, ?, ?, ?, ?, ?, 'in_progress', ?, ?)",
+        "INSERT INTO exam_sessions (id, user_id, exam_type, mode, subjects, question_count, duration_minutes, status, started_at, expires_at, filter_values) VALUES (?, ?, ?, ?, ?, ?, ?, 'in_progress', ?, ?, ?)",
     )
     .bind(&id)
     .bind(&user_id)
@@ -1208,6 +1250,7 @@ pub async fn create_exam_session(
     .bind(duration)
     .bind(now)
     .bind(expires_at)
+    .bind(&filter_values_json)
     .execute(&data.db)
     .await;
 
@@ -1218,6 +1261,11 @@ pub async fn create_exam_session(
                 .fetch_one(&data.db)
                 .await
                 .unwrap();
+
+            // Register auto-submit job (fires at expires_at + 5min grace)
+            if let Some(ref expires_at) = session.expires_at {
+                data.jobs.register_auto_submit(id.clone(), *expires_at, data.db.clone()).await;
+            }
 
             HttpResponse::Created().json(session)
         }
@@ -1233,7 +1281,7 @@ pub async fn get_exam_session(
     data: web::Data<AppState>,
     path: web::Path<String>,
 ) -> HttpResponse {
-    let user_id = match get_user_id(&req) {
+    let user_id = match get_user_id(&req, &data.config.jwt_secret) {
         Some(id) => id,
         None => return HttpResponse::Unauthorized().json(serde_json::json!({"error": "Unauthorized"})),
     };
@@ -1257,39 +1305,99 @@ pub async fn get_exam_session(
 
     match session {
         Ok(Some(session)) => {
+            // Check if session has expired
+            if let Some(expires_at) = &session.expires_at {
+                if *expires_at < Utc::now().naive_utc() {
+                    // Auto-mark as expired
+                    let _ = sqlx::query("UPDATE exam_sessions SET status = 'expired' WHERE id = ? AND status = 'in_progress'")
+                        .bind(&session_id)
+                        .execute(&data.db)
+                        .await;
+                    return HttpResponse::BadRequest().json(serde_json::json!({
+                        "error": "Session has expired",
+                        "message": "Your exam session has timed out. Please start a new session."
+                    }));
+                }
+            }
             let subject_ids: Vec<String> = serde_json::from_str(&session.subjects).unwrap_or_default();
             let stored_order: Vec<String> = serde_json::from_str(session.question_order.as_deref().unwrap_or("[]")).unwrap_or_default();
+            let filter_vals: serde_json::Value = serde_json::from_str(session.filter_values.as_deref().unwrap_or("{}")).unwrap_or(serde_json::json!({}));
 
-            let questions = if subject_ids.is_empty() {
-                sqlx::query_as::<_, ExamSessionQuestion>(
+            // Build dynamic WHERE clauses from filter_values
+            let mut extra_where = String::new();
+            let mut filter_binds: Vec<String> = Vec::new();
+
+            // year filter
+            if let Some(year) = filter_vals.get("year").and_then(|v| v.as_str()) {
+                if !year.is_empty() {
+                    extra_where.push_str(" AND q.year = ?");
+                    filter_binds.push(year.to_string());
+                }
+            }
+
+            // year_of_study filter
+            if let Some(yos) = filter_vals.get("year_of_study").and_then(|v| v.as_str()) {
+                if !yos.is_empty() {
+                    extra_where.push_str(" AND q.year_of_study = ?");
+                    filter_binds.push(yos.to_string());
+                }
+            }
+
+            // topic filter (array of topic IDs)
+            if let Some(topics) = filter_vals.get("topic").and_then(|v| v.as_array()) {
+                let topic_ids: Vec<String> = topics.iter().filter_map(|v| v.as_str().map(String::from)).collect();
+                if !topic_ids.is_empty() {
+                    let placeholders: Vec<String> = topic_ids.iter().map(|_| "?".to_string()).collect();
+                    extra_where.push_str(&format!(" AND q.topic_id IN ({})", placeholders.join(",")));
+                    filter_binds.extend(topic_ids);
+                }
+            }
+
+            // difficulty filter
+            if let Some(diff) = filter_vals.get("difficulty").and_then(|v| v.as_str()) {
+                if !diff.is_empty() {
+                    extra_where.push_str(" AND q.difficulty = ?");
+                    filter_binds.push(diff.to_string());
+                }
+            }
+
+            let questions = if session.question_count <= 0 {
+                Vec::new()
+            } else if subject_ids.is_empty() {
+                let query_str = format!(
                     "SELECT q.id, q.question_text, q.option_a, q.option_b, q.option_c, q.option_d, q.explanation, q.correct_answer, s.name as subject_name, t.name as topic_name, q.difficulty
                      FROM questions q
                      LEFT JOIN subjects s ON q.subject_id = s.id
                      LEFT JOIN topics t ON q.topic_id = t.id
-                     WHERE q.exam_type = ? AND q.is_active = 1
-                     ORDER BY RANDOM() LIMIT ?",
-                )
-                .bind(&session.exam_type)
-                .bind(session.question_count)
-                .fetch_all(&data.db)
-                .await
-                .unwrap_or_default()
+                     WHERE q.exam_type = ? AND q.is_active = 1{} ORDER BY RANDOM() LIMIT ?",
+                    extra_where
+                );
+                let mut query = sqlx::query_as::<_, ExamSessionQuestion>(&query_str)
+                    .bind(&session.exam_type);
+                for b in &filter_binds {
+                    query = query.bind(b);
+                }
+                query = query.bind(session.question_count);
+                query.fetch_all(&data.db).await.unwrap_or_default()
             } else {
                 let mut all_questions = Vec::new();
+                let per_subject = session.question_count / subject_ids.len() as i32 + 1;
                 for sid in &subject_ids {
-                    let qs = sqlx::query_as::<_, ExamSessionQuestion>(
+                    let query_str = format!(
                         "SELECT q.id, q.question_text, q.option_a, q.option_b, q.option_c, q.option_d, q.explanation, q.correct_answer, s.name as subject_name, t.name as topic_name, q.difficulty
                          FROM questions q
                          LEFT JOIN subjects s ON q.subject_id = s.id
                          LEFT JOIN topics t ON q.topic_id = t.id
-                         WHERE q.subject_id = ? AND q.is_active = 1
-                         ORDER BY RANDOM() LIMIT ?",
-                    )
-                    .bind(sid)
-                    .bind(session.question_count / subject_ids.len() as i32 + 1)
-                    .fetch_all(&data.db)
-                    .await
-                    .unwrap_or_default();
+                         WHERE q.subject_id = ? AND q.is_active = 1{} ORDER BY RANDOM() LIMIT ?",
+                        extra_where
+                    );
+                    let mut query = sqlx::query_as::<_, ExamSessionQuestion>(&query_str)
+                        .bind(sid);
+                    for b in &filter_binds {
+                        query = query.bind(b);
+                    }
+                    query = query.bind(per_subject);
+                    let qs = query.fetch_all(&data.db).await.unwrap_or_default();
                     all_questions.extend(qs);
                 }
                 all_questions
@@ -1341,8 +1449,6 @@ pub async fn get_exam_session(
                         option_b: q.option_b,
                         option_c: q.option_c,
                         option_d: q.option_d,
-                        explanation: q.explanation,
-                        correct_answer: q.correct_answer,
                         subject_name: q.subject_name,
                         topic_name: q.topic_name,
                         difficulty: q.difficulty,
@@ -1386,7 +1492,7 @@ pub async fn submit_answer(
     path: web::Path<String>,
     body: web::Json<SubmitAnswerRequest>,
 ) -> HttpResponse {
-    let user_id = match get_user_id(&req) {
+    let user_id = match get_user_id(&req, &data.config.jwt_secret) {
         Some(id) => id,
         None => return HttpResponse::Unauthorized().json(serde_json::json!({"error": "Unauthorized"})),
     };
@@ -1402,7 +1508,20 @@ pub async fn submit_answer(
     .await;
 
     match session {
-        Ok(Some(_)) => {}
+        Ok(Some(s)) => {
+            // Check if session has expired
+            if let Some(expires_at) = &s.expires_at {
+                if *expires_at < Utc::now().naive_utc() {
+                    let _ = sqlx::query("UPDATE exam_sessions SET status = 'expired' WHERE id = ?")
+                        .bind(&session_id)
+                        .execute(&data.db)
+                        .await;
+                    return HttpResponse::BadRequest().json(serde_json::json!({
+                        "error": "Session has expired"
+                    }));
+                }
+            }
+        }
         Ok(None) => return HttpResponse::NotFound().json(serde_json::json!({"error": "Session not found or already completed"})),
         Err(_) => return HttpResponse::InternalServerError().json(serde_json::json!({"error": "Internal server error"})),
     }
@@ -1457,7 +1576,7 @@ pub async fn submit_exam_session(
     path: web::Path<String>,
     body: web::Json<SubmitAllRequest>,
 ) -> HttpResponse {
-    let user_id = match get_user_id(&req) {
+    let user_id = match get_user_id(&req, &data.config.jwt_secret) {
         Some(id) => id,
         None => return HttpResponse::Unauthorized().json(serde_json::json!({"error": "Unauthorized"})),
     };
@@ -1536,6 +1655,9 @@ pub async fn submit_exam_session(
     .execute(&data.db)
     .await;
 
+    // Cancel auto-submit job since user submitted manually
+    data.jobs.cancel_auto_submit(&session_id).await;
+
     // Fetch updated session
     let updated_session = sqlx::query_as::<_, ExamSession>(
         "SELECT * FROM exam_sessions WHERE id = ?",
@@ -1605,7 +1727,7 @@ pub async fn list_exam_sessions(
     req: HttpRequest,
     data: web::Data<AppState>,
 ) -> HttpResponse {
-    let user_id = match get_user_id(&req) {
+    let user_id = match get_user_id(&req, &data.config.jwt_secret) {
         Some(id) => id,
         None => return HttpResponse::Unauthorized().json(serde_json::json!({"error": "Unauthorized"})),
     };
@@ -1641,7 +1763,7 @@ pub async fn get_session_results(
     data: web::Data<AppState>,
     path: web::Path<String>,
 ) -> HttpResponse {
-    let user_id = match get_user_id(&req) {
+    let user_id = match get_user_id(&req, &data.config.jwt_secret) {
         Some(id) => id,
         None => return HttpResponse::Unauthorized().json(serde_json::json!({"error": "Unauthorized"})),
     };
@@ -1728,7 +1850,7 @@ pub async fn abandon_session(
     data: web::Data<AppState>,
     path: web::Path<String>,
 ) -> HttpResponse {
-    let user_id = match get_user_id(&req) {
+    let user_id = match get_user_id(&req, &data.config.jwt_secret) {
         Some(id) => id,
         None => return HttpResponse::Unauthorized().json(serde_json::json!({"error": "Unauthorized"})),
     };
@@ -1744,7 +1866,10 @@ pub async fn abandon_session(
     .await;
 
     match result {
-        Ok(_) => HttpResponse::Ok().json(serde_json::json!({"message": "Session abandoned"})),
+        Ok(_) => {
+            data.jobs.cancel_auto_submit(&session_id).await;
+            HttpResponse::Ok().json(serde_json::json!({"message": "Session abandoned"}))
+        }
         Err(e) => {
             log::error!("Abandon session error: {}", e);
             HttpResponse::InternalServerError().json(serde_json::json!({"error": "Internal server error"}))
@@ -1760,7 +1885,7 @@ pub async fn list_bookmarks(
     req: HttpRequest,
     data: web::Data<AppState>,
 ) -> HttpResponse {
-    let user_id = match get_user_id(&req) {
+    let user_id = match get_user_id(&req, &data.config.jwt_secret) {
         Some(id) => id,
         None => return HttpResponse::Unauthorized().json(serde_json::json!({"error": "Unauthorized"})),
     };
@@ -1801,7 +1926,7 @@ pub async fn create_bookmark(
     data: web::Data<AppState>,
     body: web::Json<CreateBookmarkRequest>,
 ) -> HttpResponse {
-    let user_id = match get_user_id(&req) {
+    let user_id = match get_user_id(&req, &data.config.jwt_secret) {
         Some(id) => id,
         None => return HttpResponse::Unauthorized().json(serde_json::json!({"error": "Unauthorized"})),
     };
@@ -1840,7 +1965,7 @@ pub async fn delete_bookmark(
     data: web::Data<AppState>,
     path: web::Path<String>,
 ) -> HttpResponse {
-    let user_id = match get_user_id(&req) {
+    let user_id = match get_user_id(&req, &data.config.jwt_secret) {
         Some(id) => id,
         None => return HttpResponse::Unauthorized().json(serde_json::json!({"error": "Unauthorized"})),
     };
@@ -1871,7 +1996,7 @@ pub async fn get_user_stats(
     req: HttpRequest,
     data: web::Data<AppState>,
 ) -> HttpResponse {
-    let user_id = match get_user_id(&req) {
+    let user_id = match get_user_id(&req, &data.config.jwt_secret) {
         Some(id) => id,
         None => return HttpResponse::Unauthorized().json(serde_json::json!({"error": "Unauthorized"})),
     };
@@ -1884,7 +2009,7 @@ pub async fn get_user_stats(
     }
 
     let total_answered = sqlx::query_scalar::<_, i64>(
-        "SELECT COALESCE(SUM(total_answered), 0) FROM exam_sessions WHERE user_id = ? AND status = 'completed'",
+        "SELECT COALESCE(SUM(total_answered), 0) FROM exam_sessions WHERE user_id = ? AND status IN ('completed', 'expired')",
     )
     .bind(&user_id)
     .fetch_one(&data.db)
@@ -1892,7 +2017,7 @@ pub async fn get_user_stats(
     .unwrap_or(0);
 
     let total_correct = sqlx::query_scalar::<_, i64>(
-        "SELECT COALESCE(SUM(total_correct), 0) FROM exam_sessions WHERE user_id = ? AND status = 'completed'",
+        "SELECT COALESCE(SUM(total_correct), 0) FROM exam_sessions WHERE user_id = ? AND status IN ('completed', 'expired')",
     )
     .bind(&user_id)
     .fetch_one(&data.db)
@@ -1900,7 +2025,7 @@ pub async fn get_user_stats(
     .unwrap_or(0);
 
     let avg_score = sqlx::query_scalar::<_, Option<f64>>(
-        "SELECT AVG(score) FROM exam_sessions WHERE user_id = ? AND status = 'completed'",
+        "SELECT AVG(score) FROM exam_sessions WHERE user_id = ? AND status IN ('completed', 'expired')",
     )
     .bind(&user_id)
     .fetch_one(&data.db)
@@ -1910,7 +2035,7 @@ pub async fn get_user_stats(
     .unwrap_or(0.0);
 
     let total_sessions = sqlx::query_scalar::<_, i64>(
-        "SELECT COUNT(*) FROM exam_sessions WHERE user_id = ? AND status = 'completed'",
+        "SELECT COUNT(*) FROM exam_sessions WHERE user_id = ? AND status IN ('completed', 'expired')",
     )
     .bind(&user_id)
     .fetch_one(&data.db)
@@ -1918,7 +2043,7 @@ pub async fn get_user_stats(
     .unwrap_or(0);
 
     let study_time = sqlx::query_scalar::<_, Option<i64>>(
-        "SELECT SUM(time_spent_seconds) FROM exam_sessions WHERE user_id = ? AND status = 'completed'",
+        "SELECT SUM(time_spent_seconds) FROM exam_sessions WHERE user_id = ? AND status IN ('completed', 'expired')",
     )
     .bind(&user_id)
     .fetch_one(&data.db)

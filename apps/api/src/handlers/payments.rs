@@ -69,15 +69,14 @@ async fn send_activation_key_email(
     }
 }
 
-fn get_user_id(req: &HttpRequest) -> Option<String> {
+fn get_user_id(req: &HttpRequest, secret: &str) -> Option<String> {
     let auth = req.headers().get("Authorization")?;
     let val = auth.to_str().ok()?;
     let token = val.strip_prefix("Bearer ")?;
-    let secret = std::env::var("JWT_SECRET").unwrap_or_else(|_| "exam-scholars-secret-key-change-in-production".into());
     let token_data = jsonwebtoken::decode::<Claims>(
         token,
         &jsonwebtoken::DecodingKey::from_secret(secret.as_bytes()),
-        &jsonwebtoken::Validation::default(),
+        &crate::middleware::auth::hs256_validation(),
     )
     .ok()?;
     Some(token_data.claims.sub)
@@ -92,7 +91,7 @@ pub async fn init_payment(
     data: web::Data<AppState>,
     body: web::Json<InitPaymentRequest>,
 ) -> HttpResponse {
-    let user_id = match get_user_id(&req) {
+    let user_id = match get_user_id(&req, &data.config.jwt_secret) {
         Some(id) => id,
         None => return HttpResponse::Unauthorized().json(serde_json::json!({"error": "Unauthorized"})),
     };
@@ -184,7 +183,7 @@ pub async fn verify_payment(
     data: web::Data<AppState>,
     body: web::Json<VerifyPaymentRequest>,
 ) -> HttpResponse {
-    let user_id = match get_user_id(&req) {
+    let user_id = match get_user_id(&req, &data.config.jwt_secret) {
         Some(id) => id,
         None => return HttpResponse::Unauthorized().json(serde_json::json!({"error": "Unauthorized"})),
     };
@@ -324,7 +323,7 @@ pub async fn get_payment_status(
     data: web::Data<AppState>,
     path: web::Path<String>,
 ) -> HttpResponse {
-    let user_id = match get_user_id(&req) {
+    let user_id = match get_user_id(&req, &data.config.jwt_secret) {
         Some(id) => id,
         None => return HttpResponse::Unauthorized().json(serde_json::json!({"error": "Unauthorized"})),
     };

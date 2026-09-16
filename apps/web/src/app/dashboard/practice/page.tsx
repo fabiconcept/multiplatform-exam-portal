@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { authApi, examApi, sessionApi, bookmarkApi, Exam, Subject, SessionQuestion, type UserSettings } from '@/lib/api';
+import { authApi, publicExamApi, sessionApi, bookmarkApi, Exam, Subject, SessionQuestion, ExamSession, ExamFilterValues, type UserSettings } from '@/lib/api';
 import { useAuthStore } from '@/stores/auth';
 import toast from 'react-hot-toast';
 import { useRouter } from 'next/navigation';
@@ -32,7 +32,7 @@ function ExamIconMedium({ iconUrl }: { iconUrl?: string }) {
 }
 
 // ─── Types ──────────────────────────────────────────────────────────────────
-type Step = 'type' | 'subjects' | 'config' | 'practice';
+type Step = 'type' | 'subjects' | 'filters' | 'config' | 'practice';
 type PracticeMode = 'study' | 'exam';
 
 interface ExamConfig {
@@ -42,6 +42,7 @@ interface ExamConfig {
   questionCount: number;
   duration: number;
   mode: PracticeMode;
+  filterValues: Record<string, string | string[]>;
 }
 
 // ─── Constants ──────────────────────────────────────────────────────────────
@@ -82,6 +83,7 @@ export default function PracticePage() {
     questionCount: 30,
     duration: 60,
     mode: 'study',
+    filterValues: {},
   });
   const [currentQuestion, setCurrentQuestion] = useState(0);
   const [answers, setAnswers] = useState<Record<string, string>>({});
@@ -94,6 +96,8 @@ export default function PracticePage() {
   const [examsLoading, setExamsLoading] = useState(true);
   const [subjects, setSubjects] = useState<Subject[]>([]);
   const [subjectsLoading, setSubjectsLoading] = useState(false);
+  const [filterOptions, setFilterOptions] = useState<ExamFilterValues | null>(null);
+  const [filterOptionsLoading, setFilterOptionsLoading] = useState(false);
 
   // ─── Session State ──────────────────────────────────────────────────────
   const [sessionId, setSessionId] = useState<string | null>(null);
@@ -104,6 +108,7 @@ export default function PracticePage() {
   const [submitting, setSubmitting] = useState(false);
   const [showSubmitConfirm, setShowSubmitConfirm] = useState(false);
   const [showAbandonConfirm, setShowAbandonConfirm] = useState(false);
+  const [isExpired, setIsExpired] = useState(false);
 
   // ─── Timer State ──────────────────────────────────────────────────────────
   const [timeRemaining, setTimeRemaining] = useState(0);
@@ -114,6 +119,9 @@ export default function PracticePage() {
   const [showActivationModal, setShowActivationModal] = useState(false);
   const [blockedQuestion, setBlockedQuestion] = useState(false);
   const trackedQuestionsRef = useRef(new Set<string>());
+
+  // ─── In-progress sessions ─────────────────────────────────────────────
+  const [inProgressSessions, setInProgressSessions] = useState<ExamSession[]>([]);
 
   // ─── Settings State ────────────────────────────────────────────────────
   const [settings, setSettings] = useState<UserSettings | null>(null);
@@ -139,12 +147,19 @@ export default function PracticePage() {
 
   // ─── Fetch exams on mount ──────────────────────────────────────────────
   useEffect(() => {
-    if (!token) return;
     setExamsLoading(true);
-    examApi.listExams(token)
+    publicExamApi.listExams()
       .then(res => setExams(res.exams || []))
       .catch(() => toast.error('Failed to load exams'))
       .finally(() => setExamsLoading(false));
+  }, [token]);
+
+  // ─── Fetch in-progress sessions ─────────────────────────────────────
+  useEffect(() => {
+    if (!token) return;
+    sessionApi.listSessions(token)
+      .then(res => setInProgressSessions((res.sessions || []).filter(s => s.status === 'in_progress')))
+      .catch(() => {});
   }, [token]);
 
   useEffect(() => {
@@ -187,18 +202,39 @@ export default function PracticePage() {
         const qKey = `${config.examType}-${q.id}`;
         trackQuestionUsage(qKey);
       }
+      // Also block if free limit is reached
+      if (Object.keys(answers).length >= 5) {
+        setBlockedQuestion(true);
+      }
     }
-  }, [step, currentQuestion, isActivated, config.examType, trackQuestionUsage, questions]);
+  }, [step, currentQuestion, isActivated, config.examType, trackQuestionUsage, questions, answers]);
 
   // ─── Select exam handler ───────────────────────────────────────────────
   const handleSelectExam = (exam: Exam) => {
-    setConfig(prev => ({ ...prev, examType: exam.slug, examId: exam.id, subjects: [] }));
+    setConfig(prev => ({ ...prev, examType: exam.slug, examId: exam.id, subjects: [], filterValues: {} }));
+    setFilterOptions(null);
     setSubjectsLoading(true);
-    examApi.listExamSubjects(token!, exam.id)
+    publicExamApi.listExamSubjects(exam.id)
       .then(res => setSubjects(res.subjects || []))
       .catch(() => toast.error('Failed to load subjects'))
       .finally(() => setSubjectsLoading(false));
     setStep('subjects');
+  };
+
+  // ─── Proceed to filters or config step ───────────────────────────────
+  const handleProceedFromSubjects = () => {
+    if (!currentExam || !token) return;
+    const configuredFilters: string[] = (() => { try { return JSON.parse(currentExam.filters || '[]'); } catch { return []; } })();
+    if (configuredFilters.length === 0) {
+      setStep('config');
+      return;
+    }
+    setFilterOptionsLoading(true);
+    setStep('filters');
+    publicExamApi.getExamFilterValues(currentExam.id)
+      .then(res => setFilterOptions(res))
+      .catch(() => toast.error('Failed to load filter options'))
+      .finally(() => setFilterOptionsLoading(false));
   };
 
   // ─── Subject filtering & selection ─────────────────────────────────────
@@ -232,7 +268,11 @@ export default function PracticePage() {
         if (prev <= 1) {
           clearInterval(interval);
           setTimerActive(false);
-          handleAutoSubmit();
+          // Show 00:00 briefly before auto-submitting
+          setTimeout(() => {
+            setIsExpired(true);
+            handleAutoSubmitRef.current();
+          }, 500);
           return 0;
         }
         // Timer warning at 5 minutes (300 seconds)
@@ -260,6 +300,50 @@ export default function PracticePage() {
   useEffect(() => {
     if (step !== 'type' || !token) return;
     try {
+      // Handle "continue" from history page
+      const continueId = localStorage.getItem('Examinery-practice-continue');
+      if (continueId) {
+        localStorage.removeItem('Examinery-practice-continue');
+        sessionApi.getSession(token, continueId)
+          .then(res => {
+            if (res.session.status === 'in_progress') {
+              setSessionId(continueId);
+              const freeLimit = 5;
+              const isUserActivated = !user?.is_banned && (user?.is_active || usageStatus?.is_activated || false);
+              const effectiveQuestions = (!isUserActivated && res.questions.length > freeLimit)
+                ? res.questions.slice(0, freeLimit)
+                : res.questions;
+              setQuestions(effectiveQuestions);
+              setConfig(prev => ({ ...prev, examType: res.session.exam_type, mode: res.session.mode as PracticeMode }));
+              setCurrentQuestion(0);
+              setAnswers({});
+              setQuestionResults({});
+              if (res.session.expires_at) {
+                const expiresMs = typeof res.session.expires_at === 'number'
+                  ? res.session.expires_at * 1000
+                  : new Date(res.session.expires_at).getTime();
+                const remaining = Math.max(0, Math.floor((expiresMs - Date.now()) / 1000));
+                setTimeRemaining(remaining);
+                setTimerActive(remaining > 0);
+                if (remaining <= 0) {
+                  toast.error('Session has expired');
+                  return;
+                }
+              } else {
+                const totalSeconds = (res.session.duration_minutes || 60) * 60;
+                setTimeRemaining(totalSeconds);
+                setTimerActive(true);
+              }
+              setStep('practice');
+              toast.success('Resumed your session');
+            } else {
+              toast.error('Session is no longer in progress');
+            }
+          })
+          .catch(() => toast.error('Could not resume session'));
+        return;
+      }
+
       const saved = localStorage.getItem('Examinery-practice-save');
       if (!saved) return;
       const state = JSON.parse(saved);
@@ -268,14 +352,38 @@ export default function PracticePage() {
           .then(res => {
             if (res.session.status === 'in_progress') {
               setSessionId(state.sessionId);
-              setQuestions(res.questions);
+              // Cap questions for free users at the frontend level
+              const freeLimit = 5;
+              const isUserActivated = !user?.is_banned && (user?.is_active || usageStatus?.is_activated || false);
+              const effectiveQuestions = (!isUserActivated && res.questions.length > freeLimit)
+                ? res.questions.slice(0, freeLimit)
+                : res.questions;
+              setQuestions(effectiveQuestions);
               setCurrentQuestion(state.currentQuestion || 0);
               setAnswers(state.answers || {});
-              const totalSeconds = (res.session.duration_minutes || 60) * 60;
-              const elapsed = Math.floor((Date.now() - new Date(res.session.started_at).getTime()) / 1000);
-              const remaining = Math.max(0, totalSeconds - elapsed);
-              setTimeRemaining(remaining);
-              setTimerActive(remaining > 0);
+              if (res.session.expires_at) {
+                const expiresMs = typeof res.session.expires_at === 'number'
+                  ? res.session.expires_at * 1000
+                  : new Date(res.session.expires_at).getTime();
+                const remaining = Math.max(0, Math.floor((expiresMs - Date.now()) / 1000));
+                setTimeRemaining(remaining);
+                setTimerActive(remaining > 0);
+                if (remaining <= 0) {
+                  toast.error('Session has expired');
+                  localStorage.removeItem('Examinery-practice-save');
+                  setStep('type');
+                  return;
+                }
+              } else {
+                const totalSeconds = (res.session.duration_minutes || 60) * 60;
+                const startedMs = typeof res.session.started_at === 'number'
+                  ? res.session.started_at * 1000
+                  : new Date(res.session.started_at).getTime();
+                const elapsed = Math.floor((Date.now() - startedMs) / 1000);
+                const remaining = Math.max(0, totalSeconds - elapsed);
+                setTimeRemaining(remaining);
+                setTimerActive(remaining > 0);
+              }
               if (state.config) {
                 setConfig(prev => ({ ...prev, examType: state.config.examType, mode: state.config.mode }));
               }
@@ -283,12 +391,23 @@ export default function PracticePage() {
               toast.success('Restored your previous practice session');
             } else {
               localStorage.removeItem('Examinery-practice-save');
+              if (res.session.status === 'expired') {
+                toast.error('Your previous session has expired');
+              }
             }
           })
-          .catch(() => localStorage.removeItem('Examinery-practice-save'));
+          .catch(() => {
+            localStorage.removeItem('Examinery-practice-save');
+            toast.error('Could not restore previous session');
+          });
       }
     } catch { /* ignore */ }
   }, [step, token]);
+
+  const getExamName = (slug: string) => {
+    const exam = exams.find(e => e.slug === slug || e.id === slug);
+    return exam?.name || slug;
+  };
 
   const formatTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
@@ -308,17 +427,33 @@ export default function PracticePage() {
       await sessionApi.submitSession(token, sessionId, { answers: answerPayload, time_spent_seconds: config.duration * 60 });
       toast.success('Time\'s up! Session auto-submitted.');
       router.push(`/dashboard/results?session=${sessionId}`);
-    } catch {
-      toast.error('Failed to submit session');
+    } catch (e: any) {
+      if (e?.status === 400 && e?.message?.includes('expired')) {
+        toast.error('Session expired. Results will be based on saved answers.');
+        router.push(`/dashboard/results?session=${sessionId}`);
+      } else {
+        toast.error('Failed to submit session');
+      }
     } finally {
       setSubmitting(false);
     }
   }, [token, sessionId, answers, config.duration, router]);
 
+  // Keep ref to latest handleAutoSubmit so timer always calls current version
+  const handleAutoSubmitRef = useRef(handleAutoSubmit);
+  handleAutoSubmitRef.current = handleAutoSubmit;
+
   // ─── Start session ─────────────────────────────────────────────────────
   const handleStartSession = async (mode: PracticeMode) => {
     if (!token) return;
+    // Block free users with no remaining questions
+    if (!isActivated && usageStatus?.remaining !== undefined && usageStatus.remaining <= 0) {
+      setBlockedQuestion(true);
+      setShowActivationModal(true);
+      return;
+    }
     setConfig(prev => ({ ...prev, mode }));
+    setIsExpired(false);
     setSessionLoading(true);
     try {
       const created = await sessionApi.createSession(token, {
@@ -327,22 +462,85 @@ export default function PracticePage() {
         subjects: config.subjects,
         question_count: config.questionCount,
         duration_minutes: config.duration,
+        filter_values: (() => {
+          const cleaned: Record<string, string | string[]> = {};
+          for (const [k, v] of Object.entries(config.filterValues)) {
+            if (Array.isArray(v)) { if (v.length > 0) cleaned[k] = v; }
+            else if (v) cleaned[k] = v;
+          }
+          return Object.keys(cleaned).length > 0 ? cleaned : undefined;
+        })(),
       });
       setSessionId(created.id);
 
       const res = await sessionApi.getSession(token, created.id);
-      setQuestions(res.questions);
+      // Cap questions for free users at the frontend level
+      const freeLimit = 5;
+      const isUserActivated = !user?.is_banned && (user?.is_active || usageStatus?.is_activated || false);
+      const effectiveQuestions = (!isUserActivated && res.questions.length > freeLimit)
+        ? res.questions.slice(0, freeLimit)
+        : res.questions;
+      setQuestions(effectiveQuestions);
       setCurrentQuestion(0);
       setAnswers({});
       setQuestionResults({});
       setBookmarkedQuestions(new Set());
 
-      const totalSeconds = (res.session.duration_minutes || config.duration) * 60;
-      setTimeRemaining(totalSeconds);
-      setTimerActive(true);
+      if (res.session.expires_at) {
+        const expiresMs = typeof res.session.expires_at === 'number'
+          ? res.session.expires_at * 1000
+          : new Date(res.session.expires_at).getTime();
+        const remaining = Math.max(0, Math.floor((expiresMs - Date.now()) / 1000));
+        setTimeRemaining(remaining);
+        setTimerActive(remaining > 0);
+      } else {
+        const totalSeconds = (res.session.duration_minutes || config.duration) * 60;
+        setTimeRemaining(totalSeconds);
+        setTimerActive(true);
+      }
       setStep('practice');
-    } catch {
-      toast.error('Failed to start practice session');
+    } catch (e: any) {
+      // Rate limited — try to recover an existing in-progress session
+      if (e?.status === 429) {
+        try {
+          const res = await sessionApi.listSessions(token);
+          const existing = (res.sessions || []).find(s => s.status === 'in_progress' && s.exam_type === config.examType && s.mode === mode);
+          if (existing) {
+            const sessionRes = await sessionApi.getSession(token, existing.id);
+            setSessionId(existing.id);
+            const freeLimit = 5;
+            const isUserActivated = !user?.is_banned && (user?.is_active || usageStatus?.is_activated || false);
+            const effectiveQuestions = (!isUserActivated && sessionRes.questions.length > freeLimit)
+              ? sessionRes.questions.slice(0, freeLimit)
+              : sessionRes.questions;
+            setQuestions(effectiveQuestions);
+            setCurrentQuestion(0);
+            setAnswers({});
+            setQuestionResults({});
+            setBookmarkedQuestions(new Set());
+            if (sessionRes.session.expires_at) {
+              const expiresMs = typeof sessionRes.session.expires_at === 'number'
+                ? sessionRes.session.expires_at * 1000
+                : new Date(sessionRes.session.expires_at).getTime();
+              const remaining = Math.max(0, Math.floor((expiresMs - Date.now()) / 1000));
+              setTimeRemaining(remaining);
+              setTimerActive(remaining > 0);
+            } else {
+              const totalSeconds = (sessionRes.session.duration_minutes || config.duration) * 60;
+              setTimeRemaining(totalSeconds);
+              setTimerActive(true);
+            }
+            setStep('practice');
+            toast.success('Resumed existing session (rate limited)');
+            return;
+          }
+        } catch {}
+        toast.error('Too many requests. Please wait a moment and try again.');
+      } else if (e?.status === 400 && e?.message?.includes('expired')) {
+        toast.error('Session expired. Please try again.');
+      } else {
+        toast.error('Failed to start practice session');
+      }
     } finally {
       setSessionLoading(false);
     }
@@ -351,6 +549,16 @@ export default function PracticePage() {
   // ─── Answer handling ────────────────────────────────────────────────────
   const handleAnswerSelect = async (question: SessionQuestion, answer: string) => {
     if (questionResults[question.id]) return;
+
+    // Block if free limit is reached (5 answered questions for non-activated users)
+    if (!isActivated) {
+      const answeredCount = Object.keys(answers).length;
+      if (answeredCount >= 5) {
+        setBlockedQuestion(true);
+        setShowActivationModal(true);
+        return;
+      }
+    }
 
     setAnswers((prev) => ({ ...prev, [question.id]: answer }));
 
@@ -362,8 +570,13 @@ export default function PracticePage() {
         time_spent_seconds: 0,
       });
       setQuestionResults((prev) => ({ ...prev, [question.id]: result }));
-    } catch {
-      toast.error('Failed to save answer');
+    } catch (e: any) {
+      if (e?.status === 400 && e?.message?.includes('expired')) {
+        toast.error('Session has expired. Please start a new session.');
+        setStep('type');
+      } else {
+        toast.error('Failed to save answer');
+      }
     }
   };
 
@@ -403,8 +616,14 @@ export default function PracticePage() {
       localStorage.removeItem('Examinery-practice-save');
       toast.success('Session submitted!');
       router.push(`/dashboard/results?session=${sessionId}`);
-    } catch {
-      toast.error('Failed to submit session');
+    } catch (e: any) {
+      if (e?.status === 400 && e?.message?.includes('expired')) {
+        toast.error('Session has expired. Results will be based on saved answers.');
+        localStorage.removeItem('Examinery-practice-save');
+        router.push(`/dashboard/results?session=${sessionId}`);
+      } else {
+        toast.error('Failed to submit session');
+      }
     } finally {
       setSubmitting(false);
     }
@@ -423,6 +642,7 @@ export default function PracticePage() {
       toast.success('Session abandoned');
     } catch {
       localStorage.removeItem('Examinery-practice-save');
+      setStep('type');
     }
     setSessionId(null);
     setQuestions([]);
@@ -485,10 +705,10 @@ export default function PracticePage() {
 
     const keyMap: Record<string, string> = { a: 'A', b: 'B', c: 'C', d: 'D', p: 'prev', n: 'next' };
     const action = keyMap[key.toLowerCase()];
-    if (action === 'prev') setCurrentQuestion((prev) => Math.max(0, prev - 1));
+    if (action === 'prev' && config.mode === 'study') setCurrentQuestion((prev) => Math.max(0, prev - 1));
     else if (action === 'next') setCurrentQuestion((prev) => Math.min(questions.length - 1, prev + 1));
     else if (['A', 'B', 'C', 'D'].includes(action)) handleAnswerSelect(q, action);
-  }, [step, questions, currentQuestion]);
+  }, [step, questions, currentQuestion, config.mode]);
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -589,7 +809,7 @@ export default function PracticePage() {
         <div className="bg-white rounded-2xl p-3 lg:p-4 shadow-sm mb-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3 lg:gap-4 min-w-0">
-              <button onClick={() => setShowAbandonConfirm(true)} className="p-2 hover:bg-neutral-100 rounded-lg transition-colors shrink-0" aria-label="Exit practice session">
+              <button onClick={() => setShowAbandonConfirm(true)} className="p-2 hover:bg-neutral-100 rounded-lg transition-colors shrink-0 disabled:opacity-50 disabled:cursor-not-allowed" aria-label="Exit practice session" disabled={isExpired}>
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
                 </svg>
@@ -599,7 +819,14 @@ export default function PracticePage() {
                   <span className="hidden sm:inline">{config.mode === 'exam' ? 'Exam Mode' : 'Study Mode'} — </span>
                   {currentExam?.name || config.examType}
                 </h2>
-                <p className="text-xs text-neutral-500">Question {currentQuestion + 1} of {questions.length}</p>
+                <p className="text-xs text-neutral-500">
+                  Question {currentQuestion + 1} of {questions.length}
+                  {config.mode === 'exam' && (
+                    <span className="ml-2 text-primary-600 font-medium">
+                      ({Object.keys(answers).length} answered)
+                    </span>
+                  )}
+                </p>
               </div>
             </div>
             <div className="flex items-center gap-3 lg:gap-6 shrink-0">
@@ -633,25 +860,24 @@ export default function PracticePage() {
 
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
           <div className="lg:col-span-3">
-            {q && (
+            {blockedQuestion ? (
+              <div className="bg-white rounded-2xl p-4 lg:p-6 shadow-sm mb-4 flex flex-col items-center justify-center min-h-[300px] text-center">
+                <div className="w-14 h-14 bg-warning-100 rounded-full flex items-center justify-center mb-4">
+                  <svg className="w-7 h-7 text-warning-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m0 0v2m0-2h2m-2 0H10m4-6V9a4 4 0 00-8 0v2" />
+                  </svg>
+                </div>
+                <h3 className="text-lg font-bold text-neutral-900 mb-2">Free Question Limit Reached</h3>
+                <p className="text-sm text-neutral-600 mb-5 max-w-xs">You&apos;ve used all {usageStatus?.limit || 5} free questions. Activate your account to continue practicing.</p>
+                <button
+                  onClick={() => setShowActivationModal(true)}
+                  className="px-6 py-2.5 bg-neutral-900 text-white rounded-full text-sm font-medium hover:bg-neutral-800 transition-all"
+                >
+                  Activate Account
+                </button>
+              </div>
+            ) : q && (
               <div className="bg-white rounded-2xl p-4 lg:p-6 shadow-sm mb-4 relative">
-                {blockedQuestion && (
-                  <div className="absolute inset-0 bg-white/80 backdrop-blur-sm rounded-2xl z-10 flex flex-col items-center justify-center p-6 text-center">
-                    <div className="w-14 h-14 bg-warning-100 rounded-full flex items-center justify-center mb-4">
-                      <svg className="w-7 h-7 text-warning-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m0 0v2m0-2h2m-2 0H10m4-6V9a4 4 0 00-8 0v2" />
-                      </svg>
-                    </div>
-                    <h3 className="text-lg font-bold text-neutral-900 mb-2">Free Question Limit Reached</h3>
-                    <p className="text-sm text-neutral-600 mb-5 max-w-xs">You&apos;ve used all {usageStatus?.limit || 5} free questions. Activate your account to continue practicing.</p>
-                    <button
-                      onClick={() => setShowActivationModal(true)}
-                      className="px-6 py-2.5 bg-neutral-900 text-white rounded-full text-sm font-medium hover:bg-neutral-800 transition-all"
-                    >
-                      Activate Account
-                    </button>
-                  </div>
-                )}
                 <div className="flex items-center justify-between mb-4">
                   <div className="flex items-center gap-2 min-w-0">
                     <span className="text-xs font-medium px-3 py-1 bg-primary-100 text-primary-700 rounded-full shrink-0">Q{currentQuestion + 1}</span>
@@ -661,7 +887,8 @@ export default function PracticePage() {
                   </div>
                   <button
                     onClick={() => handleBookmark(q.id)}
-                    className={`p-2 rounded-lg transition-colors shrink-0 ${
+                    disabled={isExpired}
+                    className={`p-2 rounded-lg transition-colors shrink-0 disabled:opacity-50 disabled:cursor-not-allowed ${
                       bookmarkedQuestions.has(q.id)
                         ? 'bg-warning-100 text-warning-600'
                         : 'hover:bg-neutral-100 text-neutral-400'
@@ -688,14 +915,16 @@ export default function PracticePage() {
                         aria-checked={isSelected}
                         aria-label={`Option ${option}: ${optionText}`}
                         onClick={() => handleAnswerSelect(q, option)}
-                        disabled={hasAnswered}
+                        disabled={hasAnswered || isExpired}
                         className={`p-3 lg:p-4 rounded-xl border-2 text-left transition-all ${
                           hasAnswered
-                            ? isCorrect
-                              ? 'border-success-500 bg-success-50'
-                              : isWrong
-                                ? 'border-error-500 bg-error-50'
-                                : 'border-neutral-200 opacity-50'
+                            ? config.mode === 'study'
+                              ? isCorrect
+                                ? 'border-success-500 bg-success-50'
+                                : isWrong
+                                  ? 'border-error-500 bg-error-50'
+                                  : 'border-neutral-200 opacity-50'
+                              : 'border-neutral-200 opacity-50'
                             : isSelected
                               ? 'border-primary-500 bg-primary-50'
                               : 'border-neutral-200 hover:border-neutral-300 hover:bg-neutral-50'
@@ -704,10 +933,14 @@ export default function PracticePage() {
                         <div className="flex items-center gap-3">
                           <span className={`w-9 h-9 lg:w-10 lg:h-10 rounded-full flex items-center justify-center font-bold text-sm shrink-0 ${
                             hasAnswered
-                              ? isCorrect
-                                ? 'bg-success-500 text-white'
-                                : isWrong
-                                  ? 'bg-error-500 text-white'
+                              ? config.mode === 'study'
+                                ? isCorrect
+                                  ? 'bg-success-500 text-white'
+                                  : isWrong
+                                    ? 'bg-error-500 text-white'
+                                    : 'bg-neutral-100 text-neutral-600'
+                                : isSelected
+                                  ? 'bg-primary-500 text-neutral-900'
                                   : 'bg-neutral-100 text-neutral-600'
                               : isSelected
                                 ? 'bg-primary-500 text-neutral-900'
@@ -720,81 +953,98 @@ export default function PracticePage() {
                   })}
                 </div>
 
-                {/* Show result feedback in study mode */}
+                {/* Study mode: detailed feedback panel */}
                 {config.mode === 'study' && hasAnswered && qResult && (
-                  <div className={`mt-6 p-4 rounded-xl border ${
+                  <div className={`mt-6 p-5 rounded-2xl border-2 ${
                     qResult.correct
                       ? 'bg-success-50 border-success-200'
                       : 'bg-error-50 border-error-200'
                   }`}>
-                    <div className="flex items-center gap-2 mb-1">
+                    <div className="flex items-center gap-3 mb-3">
                       {qResult.correct ? (
                         <>
-                          <svg className="w-5 h-5 text-success-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                          </svg>
-                          <p className="font-medium text-success-800">Correct!</p>
+                          <div className="w-10 h-10 bg-success-500 rounded-full flex items-center justify-center">
+                            <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
+                            </svg>
+                          </div>
+                          <div>
+                            <p className="font-bold text-success-800">Correct!</p>
+                            <p className="text-sm text-success-600">You got this one right</p>
+                          </div>
                         </>
                       ) : (
                         <>
-                          <svg className="w-5 h-5 text-error-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                          </svg>
-                          <p className="font-medium text-error-800">Incorrect</p>
+                          <div className="w-10 h-10 bg-error-500 rounded-full flex items-center justify-center">
+                            <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
+                            </svg>
+                          </div>
+                          <div>
+                            <p className="font-bold text-error-800">Incorrect</p>
+                            <p className="text-sm text-error-600">The correct answer is <span className="font-bold">{qResult.correct_answer}</span></p>
+                          </div>
                         </>
                       )}
                     </div>
-                    {!qResult.correct && (
-                      <p className="text-sm text-error-700 mb-1">Correct answer: {qResult.correct_answer}</p>
-                    )}
-                    {settings?.show_explanations && q.explanation && (
-                      <div className="mt-3 pt-3 border-t border-neutral-200">
-                        <p className="text-sm font-medium text-neutral-700 mb-1">Explanation:</p>
-                        <p className="text-sm text-neutral-600 leading-relaxed">{q.explanation}</p>
-                      </div>
-                    )}
+                    <button
+                      onClick={() => { if (currentQuestion < questions.length - 1) setCurrentQuestion((prev) => prev + 1); }}
+                      disabled={currentQuestion === questions.length - 1 || isExpired}
+                      className="w-full py-2.5 bg-neutral-900 text-white rounded-xl text-sm font-medium hover:bg-neutral-800 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+                    >
+                      {currentQuestion === questions.length - 1 ? 'Finish Session' : 'Next Question →'}
+                    </button>
                   </div>
                 )}
               </div>
             )}
 
             <div className="flex items-center justify-between">
-              <button
-                onClick={() => { setCurrentQuestion((prev) => Math.max(0, prev - 1)); }}
-                disabled={currentQuestion === 0 || blockedQuestion}
-                aria-label="Go to previous question"
-                className="px-5 py-2.5 border-2 border-neutral-200 rounded-full text-sm font-medium text-neutral-700 hover:bg-neutral-50 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
-              >
-                ← Previous
-              </button>
-              <button
-                onClick={() => { if (currentQuestion < questions.length - 1) setCurrentQuestion((prev) => prev + 1); }}
-                disabled={currentQuestion === questions.length - 1 || blockedQuestion}
-                aria-label="Go to next question"
-                className="px-5 py-2.5 bg-neutral-900 text-white rounded-full text-sm font-medium hover:bg-neutral-800 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
-              >
-                Next →
-              </button>
+              {config.mode === 'study' ? (
+                <button
+                  onClick={() => { setCurrentQuestion((prev) => Math.max(0, prev - 1)); }}
+                  disabled={currentQuestion === 0 || blockedQuestion || isExpired}
+                  aria-label="Go to previous question"
+                  className="px-5 py-2.5 border-2 border-neutral-200 rounded-full text-sm font-medium text-neutral-700 hover:bg-neutral-50 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+                >
+                  ← Previous
+                </button>
+              ) : <div />}
+              {!(config.mode === 'study' && hasAnswered && qResult) && (
+                <button
+                  onClick={() => { if (currentQuestion < questions.length - 1) setCurrentQuestion((prev) => prev + 1); }}
+                  disabled={currentQuestion === questions.length - 1 || blockedQuestion || isExpired}
+                  aria-label="Go to next question"
+                  className="px-5 py-2.5 bg-neutral-900 text-white rounded-full text-sm font-medium hover:bg-neutral-800 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+                >
+                  Next →
+                </button>
+              )}
             </div>
           </div>
 
           <div className="space-y-4">
             {/* Question navigator - horizontal scroll on mobile */}
             <div className="bg-white rounded-2xl p-4 shadow-sm">
-              <p className="text-sm font-medium text-neutral-700 mb-3">Questions</p>
+              <p className="text-sm font-medium text-neutral-700 mb-3">
+                {config.mode === 'exam' ? 'Question Map' : 'Questions'}
+              </p>
               <div className="grid grid-cols-6 sm:grid-cols-6 gap-2" role="navigation" aria-label="Question navigator">
                 {questions.map((q, i) => {
                   const isAnswered = !!answers[q.id];
                   const isCurrent = i === currentQuestion;
-                  const isLocked = !isActivated && blockedQuestion && i > currentQuestion;
+                  // Lock questions beyond free limit for non-activated users
+                  const isOverFreeLimit = !isActivated && !isCurrent && Object.keys(answers).length >= 5 && i >= 5;
+                  const isLocked = isOverFreeLimit || (!isActivated && blockedQuestion && i > currentQuestion) || isExpired;
+                  const isFuture = config.mode === 'exam' && i > currentQuestion && !isAnswered;
                   return (
                     <button
                       key={q.id}
-                      onClick={() => !isLocked && setCurrentQuestion(i)}
-                      disabled={isLocked}
-                      aria-label={`Question ${i + 1}${isAnswered ? ' (answered)' : ''}${isCurrent ? ' (current)' : ''}${isLocked ? ' (locked)' : ''}`}
+                      onClick={() => !isLocked && !isFuture && setCurrentQuestion(i)}
+                      disabled={isLocked || isFuture}
+                      aria-label={`Question ${i + 1}${isAnswered ? ' (answered)' : ''}${isCurrent ? ' (current)' : ''}${isLocked ? ' (locked)' : ''}${isFuture ? ' (not reached)' : ''}`}
                       className={`w-full aspect-square rounded-lg text-xs font-medium transition-all ${
-                        isLocked
+                        isLocked || isFuture
                           ? 'bg-neutral-200 text-neutral-400 cursor-not-allowed'
                           : isCurrent ? 'bg-primary-500 text-neutral-900' : isAnswered ? 'bg-success-100 text-success-700' : 'bg-neutral-100 text-neutral-600 hover:bg-neutral-200'
                       }`}
@@ -807,14 +1057,15 @@ export default function PracticePage() {
               <div className="mt-3 flex items-center gap-4 text-xs text-neutral-500">
                 <span className="flex items-center gap-1"><span className="w-3 h-3 bg-primary-500 rounded" /> Current</span>
                 <span className="flex items-center gap-1"><span className="w-3 h-3 bg-success-100 rounded" /> Answered</span>
+                {config.mode === 'exam' && <span className="flex items-center gap-1"><span className="w-3 h-3 bg-neutral-200 rounded" /> Locked</span>}
               </div>
             </div>
 
             {/* Keyboard shortcuts - hidden on mobile */}
             <div className="bg-white rounded-2xl p-4 shadow-sm hidden lg:block">
               <p className="text-sm font-medium text-neutral-700 mb-3">Keyboard Shortcuts</p>
-              <div className="grid grid-cols-4 gap-2">
-                {['A', 'B', 'C', 'D', 'P', 'N'].map((key) => (
+              <div className={`grid gap-2 ${config.mode === 'exam' ? 'grid-cols-5' : 'grid-cols-4'}`}>
+                {['A', 'B', 'C', 'D', ...(config.mode === 'study' ? ['P'] : []), 'N'].map((key) => (
                   <button key={key} onClick={() => handleKeyPress(key.toLowerCase())}
                     className="py-2 bg-neutral-100 rounded-lg text-sm font-bold hover:bg-neutral-200 transition-colors"
                     title={key === 'P' ? 'Previous' : key === 'N' ? 'Next' : `Option ${key}`}>{key}</button>
@@ -822,7 +1073,7 @@ export default function PracticePage() {
               </div>
               <div className="mt-2 text-xs text-neutral-500 space-y-0.5">
                 <p>A-D: Select answer</p>
-                <p>P: Previous | N: Next</p>
+                {config.mode === 'study' ? <p>P: Previous | N: Next</p> : <p>N: Next question</p>}
               </div>
             </div>
 
@@ -850,14 +1101,15 @@ export default function PracticePage() {
               <button
                 className="w-full py-3 bg-primary-500 text-neutral-900 rounded-xl font-semibold hover:bg-primary-400 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                 onClick={() => setShowSubmitConfirm(true)}
-                disabled={submitting}
+                disabled={submitting || isExpired}
                 aria-label={`Submit ${config.mode === 'exam' ? 'exam' : 'practice session'}`}
               >
                 {submitting ? 'Submitting...' : `Submit ${config.mode === 'exam' ? 'Exam' : 'Practice'}`}
               </button>
               <button
-                className="w-full py-3 bg-error-50 text-error-600 rounded-xl font-medium hover:bg-error-100 transition-all"
+                className="w-full py-3 bg-error-50 text-error-600 rounded-xl font-medium hover:bg-error-100 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                 onClick={() => setShowAbandonConfirm(true)}
+                disabled={isExpired}
                 aria-label="Abandon practice session"
               >
                 Abandon
@@ -871,15 +1123,25 @@ export default function PracticePage() {
       {showSubmitConfirm && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50" onClick={() => setShowSubmitConfirm(false)}>
           <div className="bg-white rounded-2xl p-6 max-w-sm w-full mx-4 shadow-xl" onClick={(e) => e.stopPropagation()}>
-            <div className="w-12 h-12 rounded-full bg-primary-100 flex items-center justify-center mx-auto mb-4">
-              <svg className="w-6 h-6 text-primary-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <div className={`w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-4 ${
+              config.mode === 'exam' ? 'bg-warning-100' : 'bg-primary-100'
+            }`}>
+              <svg className={`w-6 h-6 ${config.mode === 'exam' ? 'text-warning-600' : 'text-primary-600'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
             </div>
             <h3 className="text-lg font-semibold text-neutral-900 text-center mb-2">Submit {config.mode === 'exam' ? 'Exam' : 'Practice'}?</h3>
-            <p className="text-neutral-500 text-sm text-center mb-6">
-              You answered {Object.keys(answers).length} of {questions.length} questions. Submit now?
+            <p className="text-neutral-500 text-sm text-center mb-4">
+              You answered {Object.keys(answers).length} of {questions.length} questions.
             </p>
+            {config.mode === 'exam' && Object.keys(answers).length < questions.length && (
+              <p className="text-warning-600 text-sm text-center mb-6 font-medium">
+                {questions.length - Object.keys(answers).length} question{questions.length - Object.keys(answers).length !== 1 ? 's' : ''} unanswered. They will be marked as incorrect.
+              </p>
+            )}
+            {config.mode === 'study' && (
+              <p className="text-neutral-400 text-sm text-center mb-6">Ready to see your results?</p>
+            )}
             <div className="flex gap-3">
               <button onClick={() => setShowSubmitConfirm(false)} className="flex-1 px-4 py-2.5 rounded-xl border-2 border-neutral-200 text-neutral-700 font-medium hover:bg-neutral-50 transition-colors">
                 Cancel
@@ -916,18 +1178,258 @@ export default function PracticePage() {
           </div>
         </div>
       )}
+
+      {/* Time's Up Modal - blocks all interaction */}
+      {isExpired && (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/60 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl p-8 max-w-sm w-full mx-4 shadow-2xl text-center">
+            <div className="w-16 h-16 bg-error-100 rounded-full flex items-center justify-center mx-auto mb-5">
+              <svg className="w-8 h-8 text-error-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+            </div>
+            <h2 className="text-xl font-bold text-neutral-900 mb-2">Time&apos;s Up!</h2>
+            <p className="text-neutral-500 text-sm mb-6">
+              Your {config.mode === 'exam' ? 'exam' : 'practice session'} is being auto-submitted.
+            </p>
+            <div className="flex items-center justify-center gap-2 text-sm text-neutral-400">
+              <div className="w-4 h-4 border-2 border-neutral-300 border-t-primary-500 rounded-full animate-spin" />
+              <span>Submitting your answers...</span>
+            </div>
+          </div>
+        </div>
+      )}
       </>
     );
   }
 
   // ─── Config Step (Duration + Count) ──────────────────────────────────
-  if (step === 'config') {
+  // ─── Filter Selection Step ────────────────────────────────────────────
+  if (step === 'filters') {
+    const configuredFilters: string[] = (() => { try { return JSON.parse(currentExam?.filters || '[]'); } catch { return []; } })();
+    const filterLabels: Record<string, string> = { year: 'Year', topic: 'Topic', year_of_study: 'Class', difficulty: 'Difficulty' };
+    const filterDescriptions: Record<string, string> = {
+      year: 'Select exam year',
+      topic: 'Choose topics to focus on',
+      year_of_study: 'Select your class level',
+      difficulty: 'Filter by difficulty',
+    };
+
+    const orderedFilters = configuredFilters.sort((a, b) => {
+      const order = ['year_of_study', 'year', 'topic', 'difficulty'];
+      return order.indexOf(a) - order.indexOf(b);
+    });
+
     return (
       <div className="p-4 lg:p-8 max-w-4xl mx-auto">
         <div className="mb-8">
           <button onClick={() => setStep('subjects')} className="text-sm text-neutral-500 hover:text-neutral-700 mb-2 inline-flex items-center gap-1">
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
             Back to subjects
+          </button>
+          <h1 className="text-2xl lg:text-3xl font-bold text-neutral-900 mb-2">Filter questions</h1>
+          <p className="text-neutral-600">Optionally narrow down which questions you practice.</p>
+        </div>
+
+        {/* Banner */}
+        <div className="bg-gradient-to-br from-neutral-900 to-neutral-800 rounded-2xl p-4 lg:p-6 text-white mb-8">
+          <div className="flex items-center gap-4 lg:gap-6">
+            <div className="w-12 h-12 bg-white/10 rounded-xl flex items-center justify-center shrink-0">
+              <ExamIconMedium iconUrl={currentExam?.icon_url} />
+            </div>
+            <div className="flex-1">
+              <h2 className="text-xl font-bold text-white">{currentExam?.name || config.examType}</h2>
+              <p className="text-neutral-400">{config.subjects.length} subject{config.subjects.length !== 1 ? 's' : ''} selected</p>
+            </div>
+          </div>
+        </div>
+
+        {filterOptionsLoading ? (
+          <div className="space-y-6">
+            {orderedFilters.map((f) => (
+              <div key={f} className="bg-white rounded-2xl p-4 lg:p-6 shadow-sm animate-pulse">
+                <div className="h-5 bg-neutral-200 rounded w-32 mb-4" />
+                <div className="flex gap-2">
+                  {[1, 2, 3].map((i) => <div key={i} className="h-10 bg-neutral-100 rounded-xl w-24" />)}
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="space-y-6">
+            {orderedFilters.map((filterType) => {
+              if (filterType === 'topic') {
+                const topics = filterOptions?.topic || [];
+                if (topics.length === 0) return null;
+                const selectedTopics = (config.filterValues.topic as string[]) || [];
+                return (
+                  <div key={filterType} className="bg-white rounded-2xl p-4 lg:p-6 shadow-sm">
+                    <h3 className="text-lg font-semibold text-neutral-900 mb-1">{filterLabels[filterType]}</h3>
+                    <p className="text-sm text-neutral-500 mb-4">{filterDescriptions[filterType]}</p>
+                    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2 max-h-60 overflow-y-auto">
+                      {topics.map((topic) => {
+                        const isSelected = selectedTopics.includes(topic.id);
+                        return (
+                          <button
+                            key={topic.id}
+                            onClick={() => {
+                              const current = selectedTopics;
+                              const newTopics = isSelected ? current.filter((t) => t !== topic.id) : [...current, topic.id];
+                              setConfig((prev) => ({ ...prev, filterValues: { ...prev.filterValues, topic: newTopics } }));
+                            }}
+                            className={`p-3 rounded-xl text-left text-sm transition-all ${
+                              isSelected ? 'bg-primary-50 border-2 border-primary-500 text-primary-900' : 'bg-neutral-50 border-2 border-transparent text-neutral-700 hover:bg-neutral-100'
+                            }`}
+                          >
+                            {topic.name}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              }
+
+              if (filterType === 'year_of_study') {
+                const options = filterOptions?.year_of_study || [];
+                const currentValue = (config.filterValues.year_of_study as string) || '';
+                return (
+                  <div key={filterType} className="bg-white rounded-2xl p-4 lg:p-6 shadow-sm">
+                    <h3 className="text-lg font-semibold text-neutral-900 mb-1">{filterLabels[filterType]}</h3>
+                    <p className="text-sm text-neutral-500 mb-4">{filterDescriptions[filterType]}</p>
+                    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+                      <button
+                        onClick={() => setConfig((prev) => ({ ...prev, filterValues: { ...prev.filterValues, year_of_study: '' } }))}
+                        className={`p-4 rounded-xl text-center font-medium transition-all ${
+                          currentValue === '' ? 'bg-neutral-900 text-white shadow-md' : 'bg-neutral-50 text-neutral-700 hover:bg-neutral-100 border-2 border-transparent'
+                        }`}
+                      >
+                        All Classes
+                      </button>
+                      {options.map((opt) => (
+                        <button
+                          key={opt}
+                          onClick={() => setConfig((prev) => ({ ...prev, filterValues: { ...prev.filterValues, year_of_study: opt } }))}
+                          className={`p-4 rounded-xl text-center font-medium transition-all ${
+                            currentValue === opt ? 'bg-neutral-900 text-white shadow-md' : 'bg-neutral-50 text-neutral-700 hover:bg-neutral-100 border-2 border-transparent'
+                          }`}
+                        >
+                          {opt}
+                        </button>
+                      ))}
+                    </div>
+                    {options.length === 0 && <p className="text-sm text-neutral-400">No class levels available</p>}
+                  </div>
+                );
+              }
+
+              if (filterType === 'year') {
+                const options = filterOptions?.year || [];
+                const currentValue = (config.filterValues.year as string) || '';
+                return (
+                  <div key={filterType} className="bg-white rounded-2xl p-4 lg:p-6 shadow-sm">
+                    <h3 className="text-lg font-semibold text-neutral-900 mb-1">{filterLabels[filterType]}</h3>
+                    <p className="text-sm text-neutral-500 mb-4">{filterDescriptions[filterType]}</p>
+                    <div className="flex flex-wrap gap-2">
+                      <button
+                        onClick={() => setConfig((prev) => ({ ...prev, filterValues: { ...prev.filterValues, year: '' } }))}
+                        className={`px-5 py-2.5 rounded-full text-sm font-medium transition-all ${
+                          currentValue === '' ? 'bg-neutral-900 text-white' : 'bg-neutral-100 text-neutral-700 hover:bg-neutral-200'
+                        }`}
+                      >
+                        All Years
+                      </button>
+                      {options.map((opt) => (
+                        <button
+                          key={opt}
+                          onClick={() => setConfig((prev) => ({ ...prev, filterValues: { ...prev.filterValues, year: opt } }))}
+                          className={`px-5 py-2.5 rounded-full text-sm font-medium transition-all ${
+                            currentValue === opt ? 'bg-neutral-900 text-white' : 'bg-neutral-100 text-neutral-700 hover:bg-neutral-200'
+                          }`}
+                        >
+                          {opt}
+                        </button>
+                      ))}
+                    </div>
+                    {options.length === 0 && <p className="text-sm text-neutral-400">No years available</p>}
+                  </div>
+                );
+              }
+
+              if (filterType === 'difficulty') {
+                const options = filterOptions?.difficulty || [];
+                const currentValue = (config.filterValues.difficulty as string) || '';
+                const difficultyColors: Record<string, string> = {
+                  easy: 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border-emerald-200',
+                  medium: 'bg-amber-50 text-amber-700 hover:bg-amber-100 border-amber-200',
+                  hard: 'bg-red-50 text-red-700 hover:bg-red-100 border-red-200',
+                };
+                const difficultySelected: Record<string, string> = {
+                  easy: 'bg-emerald-500 text-white border-emerald-500',
+                  medium: 'bg-amber-500 text-white border-amber-500',
+                  hard: 'bg-red-500 text-white border-red-500',
+                };
+                return (
+                  <div key={filterType} className="bg-white rounded-2xl p-4 lg:p-6 shadow-sm">
+                    <h3 className="text-lg font-semibold text-neutral-900 mb-1">{filterLabels[filterType]}</h3>
+                    <p className="text-sm text-neutral-500 mb-4">{filterDescriptions[filterType]}</p>
+                    <div className="flex flex-wrap gap-2">
+                      <button
+                        onClick={() => setConfig((prev) => ({ ...prev, filterValues: { ...prev.filterValues, difficulty: '' } }))}
+                        className={`px-5 py-2.5 rounded-full text-sm font-medium transition-all border ${
+                          currentValue === '' ? 'bg-neutral-900 text-white border-neutral-900' : 'bg-neutral-100 text-neutral-700 hover:bg-neutral-200 border-transparent'
+                        }`}
+                      >
+                        All Levels
+                      </button>
+                      {options.map((opt) => (
+                        <button
+                          key={opt}
+                          onClick={() => setConfig((prev) => ({ ...prev, filterValues: { ...prev.filterValues, difficulty: opt } }))}
+                          className={`px-5 py-2.5 rounded-full text-sm font-medium transition-all border ${
+                            currentValue === opt
+                              ? difficultySelected[opt] || 'bg-neutral-900 text-white border-neutral-900'
+                              : difficultyColors[opt] || 'bg-neutral-100 text-neutral-700 hover:bg-neutral-200 border-transparent'
+                          }`}
+                        >
+                          {opt.charAt(0).toUpperCase() + opt.slice(1)}
+                        </button>
+                      ))}
+                    </div>
+                    {options.length === 0 && <p className="text-sm text-neutral-400">No difficulty levels available</p>}
+                  </div>
+                );
+              }
+
+              return null;
+            })}
+          </div>
+        )}
+
+        {/* Action Buttons */}
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-4 mt-8">
+          <button onClick={() => setStep('subjects')} className="w-full sm:w-auto px-6 py-3 border-2 border-neutral-200 rounded-full font-medium text-neutral-700 hover:bg-neutral-50 transition-all text-center">
+            Back
+          </button>
+          <button
+            onClick={() => setStep('config')}
+            className="w-full sm:w-auto px-8 py-3 bg-neutral-900 text-white font-semibold rounded-full hover:bg-neutral-800 transition-all"
+          >
+            Continue
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (step === 'config') {
+    const hasFilters = (() => { try { return JSON.parse(currentExam?.filters || '[]').length > 0; } catch { return false; } })();
+    return (
+      <div className="p-4 lg:p-8 max-w-4xl mx-auto">
+        <div className="mb-8">
+          <button onClick={() => setStep(hasFilters ? 'filters' : 'subjects')} className="text-sm text-neutral-500 hover:text-neutral-700 mb-2 inline-flex items-center gap-1">
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
+            Back to {hasFilters ? 'filters' : 'subjects'}
           </button>
           <h1 className="text-2xl lg:text-3xl font-bold text-neutral-900 mb-2">Build your {currentExam?.name || config.examType} practice exam</h1>
           <p className="text-neutral-600">Set your preferred question count and duration.</p>
@@ -942,6 +1444,20 @@ export default function PracticePage() {
             <div className="flex-1">
               <h2 className="text-xl font-bold">{currentExam?.name || config.examType}</h2>
               <p className="text-neutral-400">{config.subjects.length} subject{config.subjects.length !== 1 ? 's' : ''} selected</p>
+              {(() => {
+                const activeFilters = Object.entries(config.filterValues).filter(([, v]) => v && (Array.isArray(v) ? v.length > 0 : true));
+                if (activeFilters.length === 0) return null;
+                const filterLabels: Record<string, string> = { year: 'Year', topic: 'Topic', year_of_study: 'Year of Study', difficulty: 'Difficulty' };
+                return (
+                  <div className="flex flex-wrap gap-1.5 mt-2">
+                    {activeFilters.map(([key, val]) => (
+                      <span key={key} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-white/10 text-xs text-neutral-300">
+                        {filterLabels[key] || key}: {Array.isArray(val) ? `${val.length} selected` : val}
+                      </span>
+                    ))}
+                  </div>
+                );
+              })()}
             </div>
             <div className="text-right">
               <p className="text-sm text-neutral-400">Questions</p>
@@ -985,27 +1501,80 @@ export default function PracticePage() {
           </div>
         </div>
 
-        {/* Action Buttons */}
-        <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
-          <button onClick={() => setStep('subjects')} className="w-full sm:w-auto px-6 py-3 border-2 border-neutral-200 rounded-full font-medium text-neutral-700 hover:bg-neutral-50 transition-all text-center">
-            Cancel and return to dashboard
-          </button>
-          <div className="flex gap-3 w-full sm:w-auto">
+        {/* Mode Selection */}
+        <div className="bg-white rounded-2xl p-4 lg:p-6 shadow-sm mb-6">
+          <h3 className="text-lg font-semibold text-neutral-900 mb-1">Choose Mode</h3>
+          <p className="text-sm text-neutral-500 mb-4">How do you want to practice?</p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <button
-              onClick={() => handleStartSession('study')}
+              onClick={() => setConfig({ ...config, mode: 'study' })}
               disabled={sessionLoading}
-              className="flex-1 sm:flex-none px-6 py-3 border-2 border-neutral-200 rounded-full font-medium text-neutral-700 hover:bg-neutral-50 transition-all disabled:opacity-50"
+              className={`p-4 rounded-xl border-2 text-left transition-all ${
+                config.mode === 'study'
+                  ? 'border-success-500 bg-success-50'
+                  : 'border-neutral-200 hover:border-neutral-300'
+              }`}
             >
-              {sessionLoading ? 'Starting...' : 'Study Mode'}
+              <div className="flex items-center gap-3 mb-2">
+                <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${config.mode === 'study' ? 'bg-success-500' : 'bg-neutral-100'}`}>
+                  <svg className={`w-5 h-5 ${config.mode === 'study' ? 'text-white' : 'text-neutral-500'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+                  </svg>
+                </div>
+                <div>
+                  <p className="font-semibold text-neutral-900">Study Mode</p>
+                  <p className="text-xs text-success-600 font-medium">Learn as you go</p>
+                </div>
+              </div>
+              <ul className="text-xs text-neutral-500 space-y-1 ml-13">
+                <li className="flex items-center gap-1.5"><span className="text-success-500">&#10003;</span> Immediate answer feedback</li>
+                <li className="flex items-center gap-1.5"><span className="text-success-500">&#10003;</span> See correct answers instantly</li>
+                <li className="flex items-center gap-1.5"><span className="text-success-500">&#10003;</span> Navigate freely between questions</li>
+                <li className="flex items-center gap-1.5"><span className="text-success-500">&#10003;</span> No time pressure</li>
+              </ul>
             </button>
             <button
-              onClick={() => handleStartSession('exam')}
+              onClick={() => setConfig({ ...config, mode: 'exam' })}
               disabled={sessionLoading}
-              className="flex-1 sm:flex-none px-6 lg:px-8 py-3 bg-primary-500 text-neutral-900 rounded-full font-semibold hover:bg-primary-400 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+              className={`p-4 rounded-xl border-2 text-left transition-all ${
+                config.mode === 'exam'
+                  ? 'border-primary-500 bg-primary-50'
+                  : 'border-neutral-200 hover:border-neutral-300'
+              }`}
             >
-              {sessionLoading ? 'Starting...' : 'Start Practice'}
+              <div className="flex items-center gap-3 mb-2">
+                <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${config.mode === 'exam' ? 'bg-primary-500' : 'bg-neutral-100'}`}>
+                  <svg className={`w-5 h-5 ${config.mode === 'exam' ? 'text-neutral-900' : 'text-neutral-500'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+                  </svg>
+                </div>
+                <div>
+                  <p className="font-semibold text-neutral-900">Exam Mode</p>
+                  <p className="text-xs text-primary-600 font-medium">Simulate real exam</p>
+                </div>
+              </div>
+              <ul className="text-xs text-neutral-500 space-y-1 ml-13">
+                <li className="flex items-center gap-1.5"><span className="text-primary-500">&#10003;</span> Countdown timer</li>
+                <li className="flex items-center gap-1.5"><span className="text-primary-500">&#10003;</span> Forward-only navigation</li>
+                <li className="flex items-center gap-1.5"><span className="text-primary-500">&#10003;</span> Answers locked after selection</li>
+                <li className="flex items-center gap-1.5"><span className="text-primary-500">&#10003;</span> Auto-submit when time runs out</li>
+              </ul>
             </button>
           </div>
+        </div>
+
+        {/* Action Buttons */}
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
+          <button onClick={() => setStep(hasFilters ? 'filters' : 'subjects')} className="w-full sm:w-auto px-6 py-3 border-2 border-neutral-200 rounded-full font-medium text-neutral-700 hover:bg-neutral-50 transition-all text-center">
+            Back
+          </button>
+          <button
+            onClick={() => handleStartSession(config.mode)}
+            disabled={sessionLoading || (!isActivated && (usageStatus?.remaining ?? 5) <= 0)}
+            className="w-full sm:w-auto px-6 lg:px-8 py-3 bg-primary-500 text-neutral-900 rounded-full font-semibold hover:bg-primary-400 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+          >
+            {sessionLoading ? 'Starting...' : !isActivated && (usageStatus?.remaining ?? 5) <= 0 ? 'Limit Reached' : config.mode === 'exam' ? 'Start Exam' : 'Start Studying'}
+          </button>
         </div>
       </div>
     );
@@ -1023,7 +1592,7 @@ export default function PracticePage() {
             Back to exam types
           </button>
           <h1 className="text-2xl lg:text-3xl font-bold text-neutral-900 mb-2">Build your {currentExam?.name || config.examType} practice exam</h1>
-          <p className="text-neutral-600">Select subjects, then set your preferred question count and duration.</p>
+          <p className="text-neutral-600">Select subjects to practice.</p>
         </div>
 
         {/* Banner */}
@@ -1128,7 +1697,7 @@ export default function PracticePage() {
             )}
           </div>
           <button
-            onClick={() => setStep('config')}
+            onClick={handleProceedFromSubjects}
             disabled={minSubjects > 0 && selectedCount < minSubjects}
             className="w-full sm:w-auto px-8 py-3 bg-neutral-900 text-white font-semibold rounded-full hover:bg-neutral-800 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
           >
@@ -1146,6 +1715,33 @@ export default function PracticePage() {
         <h1 className="text-2xl lg:text-3xl font-bold text-neutral-900 mb-2">Practice</h1>
         <p className="text-neutral-600">Choose your exam type and start practicing</p>
       </div>
+
+      {/* In-progress sessions */}
+      {inProgressSessions.length > 0 && (
+        <div className="mb-6 bg-primary-50 border border-primary-200 rounded-2xl p-4">
+          <p className="text-sm font-semibold text-neutral-900 mb-3">Continue where you left off</p>
+          <div className="space-y-2">
+            {inProgressSessions.map(s => (
+              <div
+                key={s.id}
+                onClick={() => {
+                  localStorage.setItem('Examinery-practice-continue', s.id);
+                  window.location.reload();
+                }}
+                className="flex items-center justify-between bg-white rounded-xl px-4 py-3 cursor-pointer hover:shadow-sm transition-shadow"
+              >
+                <div>
+                  <span className="font-medium text-neutral-900">{getExamName(s.exam_type)}</span>
+                  <span className="text-sm text-neutral-500 ml-2">{s.mode} &middot; {s.question_count} questions</span>
+                </div>
+                <span className="px-4 py-1.5 bg-primary-500 text-neutral-900 rounded-full text-sm font-semibold hover:bg-primary-400 transition-colors">
+                  Resume
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
         {examsLoading ? (
