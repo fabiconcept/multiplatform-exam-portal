@@ -96,12 +96,22 @@ export default function AboutPage() {
                 in academic success.
               </p>
             </div>
-            <div className="bg-white rounded-3xl p-8 shadow-lg">
-              <div className="grid grid-cols-2 gap-6">
+            <div className="relative rounded-3xl overflow-hidden shadow-lg min-h-[320px]">
+              <img
+                src="/images/photos/success.jpg"
+                alt="Students celebrating exam success"
+                className="absolute inset-0 w-full h-full object-cover"
+              />
+              <div className="absolute inset-0 bg-gradient-to-t from-neutral-900/70 via-transparent to-transparent" />
+              <div className="absolute bottom-0 left-0 right-0 p-6">
+                <p className="text-white font-semibold text-lg">Real students. Real results.</p>
+                <p className="text-white/80 text-sm">Join 300,000+ learners preparing smarter with Examinery.</p>
+              </div>
+              <div className="absolute top-4 right-4 grid grid-cols-2 gap-3 bg-white/95 rounded-2xl p-4 shadow-xl">
                 {stats.map((stat) => (
-                  <div key={stat.label} className="text-center p-4">
-                    <p className="text-3xl font-bold text-primary-500">{stat.value}</p>
-                    <p className="text-neutral-600 mt-1">{stat.label}</p>
+                  <div key={stat.label} className="text-center px-2">
+                    <p className="text-xl font-bold text-primary-600">{stat.value}</p>
+                    <p className="text-neutral-600 text-xs mt-0.5">{stat.label}</p>
                   </div>
                 ))}
               </div>

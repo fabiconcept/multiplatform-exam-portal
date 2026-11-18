@@ -65,8 +65,15 @@ const platforms = [
 
 export default function Download() {
   return (
-    <section className="py-16 md:py-24 bg-neutral-900">
-      <div className="section-container">
+    <section className="relative py-16 md:py-24 bg-neutral-900 overflow-hidden">
+      <img
+        src="/images/photos/student-happy.jpg"
+        alt=""
+        className="absolute inset-0 w-full h-full object-cover object-top opacity-20"
+        aria-hidden="true"
+      />
+      <div className="absolute inset-0 bg-gradient-to-t from-neutral-900 via-neutral-900/85 to-neutral-900/70" />
+      <div className="section-container relative">
         {/* Section Header */}
         <div className="text-center mb-12 md:mb-16">
           <span className="badge-primary mb-4 inline-block">Download</span>

@@ -45,8 +45,14 @@ const steps = [
 
 export default function HowItWorks() {
   return (
-    <section className="py-16 md:py-24 bg-background-100">
-      <div className="section-container">
+    <section className="relative py-16 md:py-24 bg-background-100 overflow-hidden">
+      <img
+        src="/images/photos/reading.jpg"
+        alt=""
+        className="absolute inset-0 w-full h-full object-cover opacity-[0.12] pointer-events-none"
+        aria-hidden="true"
+      />
+      <div className="section-container relative">
         {/* Section Header */}
         <div className="text-center mb-12 md:mb-16">
           <span className="badge-accent mb-4 inline-block">How It Works</span>
@@ -75,7 +81,7 @@ export default function HowItWorks() {
                 {/* Step Number */}
                 <div className="w-20 h-20 mx-auto mb-5 bg-primary-50 rounded-2xl flex items-center justify-center relative">
                   {step.icon}
-                  <span className="absolute -top-2 -right-2 w-7 h-7 bg-primary-500 rounded-full flex items-center justify-center text-xs font-bold text-white shadow-md">
+                  <span className="absolute -top-2 -right-2 w-7 h-7 bg-primary-500 rounded-full flex items-center justify-center text-xs font-bold text-[#2A241E] shadow-md">
                     {step.number}
                   </span>
                 </div>

@@ -83,13 +83,19 @@ export default function Features() {
         </div>
 
         {/* Feature Highlight */}
-        <div className="mt-16 bg-gradient-to-br from-primary-500 to-primary-600 rounded-3xl p-8 md:p-12">
-          <div className="grid md:grid-cols-2 gap-8 items-center">
-            <div className="text-neutral-900">
-              <h3 className="text-2xl md:text-3xl font-display font-bold mb-4">
+        <div className="mt-16 relative overflow-hidden rounded-3xl bg-gradient-to-br from-primary-500 to-primary-600">
+          <img
+            src="/images/photos/exam-writing.jpg"
+            alt="Student writing an exam"
+            className="absolute inset-0 w-full h-full object-cover object-center opacity-25 mix-blend-multiply pointer-events-none"
+            aria-hidden="true"
+          />
+          <div className="relative grid md:grid-cols-2 gap-8 items-center p-8 md:p-12">
+            <div className="text-[#2A241E]">
+              <h3 className="text-2xl md:text-3xl font-display font-bold mb-4 text-[#2A241E]">
                 Don&apos;t just practice, understand
               </h3>
-              <p className="text-lg text-neutral-800 mb-6">
+              <p className="text-lg text-[#3C332B] mb-6">
                 Most students memorize answers and forget them by exam day. Examinery is different.
                 Every question includes a detailed explanation so you learn the concept behind the answer.
               </p>
@@ -100,10 +106,10 @@ export default function Features() {
                   'Common mistakes flagged so you avoid them',
                 ].map((item) => (
                   <li key={item} className="flex items-center gap-3">
-                    <svg className="w-5 h-5 text-accent-500 shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                    <svg className="w-5 h-5 text-accent-600 shrink-0" fill="currentColor" viewBox="0 0 20 20">
                       <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
                     </svg>
-                    <span className="font-medium text-sm">{item}</span>
+                    <span className="font-semibold text-sm text-[#2A241E]">{item}</span>
                   </li>
                 ))}
               </ul>

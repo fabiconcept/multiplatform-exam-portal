@@ -42,8 +42,14 @@ const avatarColors = [
 
 export default function Testimonials() {
   return (
-    <section className="py-16 md:py-24 bg-background-100">
-      <div className="section-container">
+    <section className="relative py-16 md:py-24 bg-background-100 overflow-hidden">
+      <img
+        src="/images/photos/celebrating.jpg"
+        alt=""
+        className="absolute inset-0 w-full h-full object-cover opacity-[0.1] pointer-events-none"
+        aria-hidden="true"
+      />
+      <div className="section-container relative">
         {/* Section Header */}
         <div className="text-center mb-12 md:mb-16">
           <span className="badge-primary mb-4 inline-block">Testimonials</span>

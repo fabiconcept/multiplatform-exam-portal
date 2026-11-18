@@ -42,15 +42,28 @@ const defaultIcons: Record<string, JSX.Element> = {
   ),
 };
 
+const defaultLogos: Record<string, string> = {
+  jamb: '/images/jamb.webp',
+  waec: '/images/waec.png',
+  neco: '/images/neco.webp',
+  postutme: '/images/post utme.webp',
+  'post-utme': '/images/post utme.webp',
+  ncee: '/images/ncee.webp',
+  bece: '/images/neco.webp',
+};
+
 function ExamIcon({ iconUrl, name, slug }: { iconUrl?: string; name: string; slug: string }) {
   const [imgError, setImgError] = useState(false);
-  if (iconUrl && !imgError) {
+  const logo = defaultLogos[slug];
+  const src = iconUrl && !imgError ? iconUrl : !imgError && logo ? logo : null;
+
+  if (src) {
     return (
       <img
-        src={iconUrl}
+        src={src}
         alt={name}
-        width={32}
-        height={32}
+        width={40}
+        height={40}
         className="object-contain"
         onError={() => setImgError(true)}
       />

@@ -7,7 +7,7 @@ import { publicExamApi } from '@/lib/api';
 const staticLinks = {
   product: [
     { label: 'Downloads', href: '/download' },
-    { label: 'Activate app', href: '/activate' },
+    { label: 'Activate app', href: '/dashboard/activate' },
     { label: 'How to buy', href: '/pricing' },
     { label: 'Community forum', href: '/forum' },
   ],
@@ -119,6 +119,25 @@ export default function Footer() {
               Trusted CBT practice and Nigerian exam preparation software with quality past questions,
               detailed explanations and offline access.
             </p>
+            {/* Exam body logos */}
+            <div className="flex flex-wrap gap-2 mb-6">
+              {[
+                { src: '/images/jamb.webp', alt: 'JAMB' },
+                { src: '/images/waec.png', alt: 'WAEC' },
+                { src: '/images/neco.webp', alt: 'NECO' },
+                { src: '/images/post utme.webp', alt: 'Post-UTME' },
+                { src: '/images/ncee.webp', alt: 'NCEE' },
+              ].map((logo) => (
+                <span
+                  key={logo.alt}
+                  className="inline-flex items-center gap-1.5 bg-neutral-800 rounded-full pl-1.5 pr-3 py-1"
+                  title={logo.alt}
+                >
+                  <img src={logo.src} alt={logo.alt} className="w-5 h-5 object-contain" />
+                  <span className="text-[10px] font-bold text-neutral-300">{logo.alt}</span>
+                </span>
+              ))}
+            </div>
             {/* Social Links */}
             <div className="flex gap-3">
               {socialLinks.map((social) => (

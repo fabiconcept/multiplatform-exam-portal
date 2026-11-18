@@ -55,11 +55,11 @@ export default function ExamsPage() {
         {/* Header */}
         <div className="bg-primary-500 py-16 md:py-24 mb-16">
           <div className="section-container text-center">
-            <span className="badge bg-white/20 text-neutral-900 mb-4 inline-block">Exam Categories</span>
-            <h1 className="text-4xl md:text-5xl lg:text-6xl font-display font-bold text-neutral-900 mb-6">
+            <span className="badge bg-white/30 text-[#2A241E] mb-4 inline-block">Exam Categories</span>
+            <h1 className="text-4xl md:text-5xl lg:text-6xl font-display font-bold text-[#2A241E] mb-6">
               Prepare for every exam
             </h1>
-            <p className="text-lg md:text-xl text-neutral-700 max-w-2xl mx-auto">
+            <p className="text-lg md:text-xl text-[#3C332B] max-w-2xl mx-auto">
               Choose your exam category and start practicing with thousands of past questions,
               detailed explanations, and realistic CBT simulations.
             </p>

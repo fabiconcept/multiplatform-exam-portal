@@ -147,6 +147,40 @@
   .dark h1, .dark h2, .dark h3, .dark h4, .dark h5, .dark h6 {
     @apply text-gray-100;
   }
+
+  /* Keep dark text on yellow brand surfaces (white-on-yellow is unreadable) */
+  .dark .bg-primary-500 .text-neutral-900,
+  .dark .bg-primary-500 .text-neutral-800,
+  .dark .bg-primary-500 .text-neutral-700,
+  .dark .bg-primary-500 .text-neutral-600,
+  .dark .bg-primary-500 h1,
+  .dark .bg-primary-500 h2,
+  .dark .bg-primary-500 h3,
+  .dark .bg-primary-500 h4,
+  .dark .bg-primary-500 h5,
+  .dark .bg-primary-500 h6,
+  .dark .from-primary-500 .text-neutral-900,
+  .dark .from-primary-500 .text-neutral-800,
+  .dark .from-primary-500 .text-neutral-700,
+  .dark .from-primary-500 .text-neutral-600,
+  .dark .from-primary-500 h1,
+  .dark .from-primary-500 h2,
+  .dark .from-primary-500 h3,
+  .dark .from-primary-500 h4,
+  .dark .from-primary-500 h5,
+  .dark .from-primary-500 h6,
+  .dark .to-primary-600 .text-neutral-900,
+  .dark .to-primary-600 .text-neutral-800,
+  .dark .to-primary-600 .text-neutral-700,
+  .dark .to-primary-600 .text-neutral-600 {
+    @apply text-[#2A241E];
+  }
+
+  .dark .bg-primary-500 .text-neutral-500,
+  .dark .from-primary-500 .text-neutral-500,
+  .dark .to-primary-600 .text-neutral-500 {
+    @apply text-[#3C332B];
+  }
 }
 
 @layer components {
@@ -180,6 +214,14 @@
 
   .dark .text-neutral-500 {
     @apply text-gray-500;
+  }
+
+  .dark .text-neutral-950 {
+    @apply text-gray-50;
+  }
+
+  .dark .hover\:text-neutral-950:hover {
+    @apply text-gray-50;
   }
 
   .dark .border-neutral-200 {
@@ -312,6 +354,18 @@
 
   .dark .text-white {
     @apply text-gray-100;
+  }
+
+  .dark .bg-white\/90 {
+    background-color: rgba(35, 35, 64, 0.9);
+  }
+
+  .dark .bg-white\/95 {
+    background-color: rgba(35, 35, 64, 0.95);
+  }
+
+  .dark .bg-white\/15 {
+    background-color: rgba(255, 255, 255, 0.1);
   }
 }
 

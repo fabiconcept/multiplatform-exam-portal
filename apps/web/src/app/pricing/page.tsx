@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import Navbar from '@/components/landing/Navbar';
 import Footer from '@/components/landing/Footer';
+import { formatPrice } from '@/lib/constants';
 
 const plans = [
   {
@@ -21,7 +22,7 @@ const plans = [
   },
   {
     name: 'Premium',
-    price: '₦3,000',
+    price: formatPrice(),
     period: 'one-time',
     description: 'Unlock all features for exam success',
     features: [
@@ -59,7 +60,7 @@ const faqs = [
   },
   {
     question: 'Is there a student discount?',
-    answer: 'We already keep our pricing affordable at ₦3,000. Contact us if you need special assistance.',
+    answer: `We already keep our pricing affordable at ${formatPrice()}. Contact us if you need special assistance.`,
   },
 ];
 
@@ -71,11 +72,11 @@ export default function PricingPage() {
         {/* Header */}
         <div className="bg-primary-500 py-16 md:py-24 mb-16">
           <div className="section-container text-center">
-            <span className="badge bg-neutral-900/10 text-neutral-900 mb-4 inline-block">Pricing</span>
-            <h1 className="text-4xl md:text-5xl lg:text-6xl font-display font-bold text-neutral-900 mb-6">
+            <span className="badge bg-neutral-900/10 text-[#2A241E] mb-4 inline-block">Pricing</span>
+            <h1 className="text-4xl md:text-5xl lg:text-6xl font-display font-bold text-[#2A241E] mb-6">
               Simple, affordable pricing
             </h1>
-            <p className="text-lg md:text-xl text-neutral-700 max-w-2xl mx-auto">
+            <p className="text-lg md:text-xl text-[#3C332B] max-w-2xl mx-auto">
               Invest in your academic success. One-time payment, lifetime access. 
               No subscriptions, no hidden fees.
             </p>
@@ -161,7 +162,7 @@ export default function PricingPage() {
                   2
                 </div>
                 <h3 className="font-semibold mb-2">Make Payment</h3>
-                <p className="text-neutral-600 text-sm">Pay ₦3,000 via bank transfer, card, or USSD</p>
+                <p className="text-neutral-600 text-sm">Pay {formatPrice()} via bank transfer, card, or USSD</p>
               </div>
               <div className="text-center">
                 <div className="w-12 h-12 bg-primary-100 rounded-full flex items-center justify-center text-primary-600 font-bold text-xl mx-auto mb-4">

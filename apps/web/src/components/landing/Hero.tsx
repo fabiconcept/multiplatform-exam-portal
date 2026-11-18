@@ -9,14 +9,22 @@ const stats = [
 export default function Hero() {
   return (
     <section className="relative pt-32 pb-20 md:pt-40 md:pb-28 overflow-hidden">
-      {/* Background */}
-      <div className="absolute inset-0 bg-gradient-to-br from-primary-500 via-primary-400 to-accent-400" />
+      {/* Background photo + gradient */}
+      <div className="absolute inset-0">
+        <img
+          src="/images/photos/studying.jpg"
+          alt=""
+          className="w-full h-full object-cover object-center"
+          aria-hidden="true"
+        />
+        <div className="absolute inset-0 bg-gradient-to-br from-primary-500/90 via-primary-400/85 to-accent-400/80 dark:from-[#2a2a4a]/95 dark:via-[#232340]/95 dark:to-[#1e1e38]/95" />
+      </div>
 
       <div className="section-container relative">
         <div className="grid lg:grid-cols-2 gap-12 lg:gap-16 items-center">
           {/* Left Content */}
           <div className="text-center lg:text-left">
-            <div className="inline-flex items-center gap-2 bg-white/15 backdrop-blur-sm text-neutral-900 text-sm font-medium px-4 py-2 rounded-full mb-6">
+            <div className="inline-flex items-center gap-2 bg-white/90 backdrop-blur-sm text-neutral-900 text-sm font-semibold px-4 py-2 rounded-full mb-6 shadow-sm">
               <span className="w-2 h-2 bg-success-500 rounded-full animate-pulse" />
               Free practice, no credit card needed
             </div>
@@ -26,16 +34,35 @@ export default function Hero() {
               <span className="block text-accent-600 mt-1">to pass their exams. You can too.</span>
             </h1>
 
-            <p className="text-lg md:text-xl text-neutral-700 mb-10 max-w-xl mx-auto lg:mx-0 leading-relaxed">
+            <p className="text-lg md:text-xl text-neutral-900 mb-10 max-w-xl mx-auto lg:mx-0 leading-relaxed">
               Practice JAMB, WAEC, Post-UTME, BECE &amp; NCEE with real past questions,
               instant grading, and detailed explanations, online or offline.
             </p>
+
+            {/* Exam body logos */}
+            <div className="flex flex-wrap items-center justify-center lg:justify-start gap-3 mb-10">
+              {[
+                { src: '/images/jamb.webp', alt: 'JAMB' },
+                { src: '/images/waec.png', alt: 'WAEC' },
+                { src: '/images/neco.webp', alt: 'NECO' },
+                { src: '/images/post utme.webp', alt: 'Post-UTME' },
+                { src: '/images/ncee.webp', alt: 'NCEE' },
+              ].map((logo) => (
+                <span
+                  key={logo.alt}
+                  className="inline-flex items-center gap-2 bg-white/85 backdrop-blur-sm rounded-full pl-2 pr-4 py-1.5 shadow-sm"
+                >
+                  <img src={logo.src} alt={logo.alt} className="w-7 h-7 object-contain" />
+                  <span className="text-xs font-bold text-neutral-800">{logo.alt}</span>
+                </span>
+              ))}
+            </div>
 
             {/* CTAs */}
             <div className="flex flex-col sm:flex-row gap-4 justify-center lg:justify-start mb-10">
               <Link
                 href="/register"
-                className="px-8 py-4 bg-neutral-900 text-white font-semibold rounded-full text-lg hover:bg-neutral-800 hover:shadow-xl active:scale-[0.98] transition-all duration-200 inline-flex items-center justify-center gap-2"
+                className="px-8 py-4 bg-neutral-900 dark:bg-white dark:text-neutral-900 text-white font-semibold rounded-full text-lg hover:bg-neutral-800 dark:hover:bg-gray-100 hover:shadow-xl active:scale-[0.98] transition-all duration-200 inline-flex items-center justify-center gap-2"
               >
                 Start practising free
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -44,7 +71,7 @@ export default function Hero() {
               </Link>
               <Link
                 href="/exams"
-                className="px-8 py-4 bg-white/80 backdrop-blur text-neutral-900 font-semibold rounded-full text-lg hover:bg-white hover:shadow-lg active:scale-[0.98] transition-all duration-200 inline-flex items-center justify-center"
+                className="px-8 py-4 bg-white/80 dark:bg-white/10 backdrop-blur text-neutral-900 dark:text-gray-100 font-semibold rounded-full text-lg hover:bg-white dark:hover:bg-white/20 hover:shadow-lg active:scale-[0.98] transition-all duration-200 inline-flex items-center justify-center"
               >
                 Browse exams
               </Link>
@@ -55,7 +82,7 @@ export default function Hero() {
               {stats.map((stat) => (
                 <div key={stat.label} className="text-center lg:text-left">
                   <p className="text-2xl font-bold text-neutral-900">{stat.value}</p>
-                  <p className="text-sm text-neutral-600">{stat.label}</p>
+                  <p className="text-sm text-neutral-800 font-medium">{stat.label}</p>
                 </div>
               ))}
             </div>
@@ -65,7 +92,7 @@ export default function Hero() {
           <div className="relative flex justify-center lg:justify-end">
             {/* Decorative ring */}
             <div className="absolute inset-0 flex items-center justify-center">
-              <div className="w-72 h-72 md:w-96 md:h-96 rounded-full border-2 border-dashed border-white/30 animate-[spin_60s_linear_infinite]" />
+              <div className="w-72 h-72 md:w-96 md:h-96 rounded-full border-2 border-dashed border-white/30 dark:border-gray-600/30 animate-[spin_60s_linear_infinite]" />
             </div>
 
             {/* Main card */}
@@ -127,7 +154,7 @@ export default function Hero() {
             </div>
 
             {/* Floating badge */}
-            <div className="absolute -bottom-4 left-4 md:left-0 bg-neutral-900 text-white px-5 py-3 rounded-2xl flex items-center gap-3 shadow-xl">
+            <div className="absolute -bottom-4 left-4 md:left-0 bg-neutral-900 dark:bg-[#16162a] text-white px-5 py-3 rounded-2xl flex items-center gap-3 shadow-xl">
               <div className="w-10 h-10 bg-success-500 rounded-full flex items-center justify-center">
                 <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
@@ -135,7 +162,7 @@ export default function Hero() {
               </div>
               <div>
                 <p className="text-sm font-semibold">Works offline</p>
-                <p className="text-xs text-neutral-400">No data required</p>
+                <p className="text-xs text-neutral-400 dark:text-gray-500">No data required</p>
               </div>
             </div>
           </div>
