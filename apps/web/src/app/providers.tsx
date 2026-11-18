@@ -6,14 +6,15 @@ import { Toaster } from 'react-hot-toast';
 
 function DarkModeInit() {
   useEffect(() => {
+    // Only honor an explicit user choice — never auto-enable from OS preference.
+    // Auto dark mode made Firefox render the navy theme while Chrome stayed light.
     const stored = localStorage.getItem('darkMode');
     if (stored === 'true') {
       document.documentElement.classList.add('dark');
-    } else if (stored === null) {
-      const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-      if (prefersDark) {
-        document.documentElement.classList.add('dark');
-        localStorage.setItem('darkMode', 'true');
+    } else {
+      document.documentElement.classList.remove('dark');
+      if (stored === null) {
+        localStorage.setItem('darkMode', 'false');
       }
     }
   }, []);

@@ -10,9 +10,13 @@ export function useDarkMode() {
 
   useEffect(() => {
     const stored = localStorage.getItem('darkMode');
-    if (stored === 'true') {
-      setDarkMode(true);
+    // Explicit choice only — do not follow OS prefers-color-scheme
+    const enabled = stored === 'true';
+    setDarkMode(enabled);
+    if (enabled) {
       document.documentElement.classList.add('dark');
+    } else {
+      document.documentElement.classList.remove('dark');
     }
   }, []);
 

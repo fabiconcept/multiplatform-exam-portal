@@ -1,6 +1,6 @@
-const CACHE_NAME = 'Examinery-v1';
-const STATIC_CACHE = 'Examinery-static-v1';
-const DYNAMIC_CACHE = 'Examinery-dynamic-v1';
+const CACHE_NAME = 'Examinery-v2';
+const STATIC_CACHE = 'Examinery-static-v2';
+const DYNAMIC_CACHE = 'Examinery-dynamic-v2';
 
 const PRECACHE_URLS = [
   '/',
@@ -24,7 +24,7 @@ self.addEventListener('activate', (event) => {
     caches.keys().then((cacheNames) =>
       Promise.all(
         cacheNames
-          .filter((name) => name !== STATIC_CACHE && name !== DYNAMIC_CACHE)
+          .filter((name) => name.startsWith('Examinery-') && name !== STATIC_CACHE && name !== DYNAMIC_CACHE)
           .map((name) => caches.delete(name))
       )
     )
@@ -39,6 +39,12 @@ self.addEventListener('fetch', (event) => {
   if (request.method !== 'GET') return;
 
   if (url.pathname.startsWith('/api/')) {
+    event.respondWith(networkFirst(request));
+    return;
+  }
+
+  // Documents: network first so users always get fresh HTML/CSS references
+  if (request.destination === 'document') {
     event.respondWith(networkFirst(request));
     return;
   }
